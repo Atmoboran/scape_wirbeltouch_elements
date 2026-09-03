@@ -15,7 +15,7 @@ export const defaultConfig = {
     MASK_SCALE: 2,
     PRESSURE_ITERATIONS: 32,
     PRESSURE_DECAY: 0.85,
-    DENSITY_DISSIPATION: 0.35,
+    DENSITY_DISSIPATION: 0,
     VELOCITY_DISSIPATION: 0.15,
     CURL: 8,
     SPLAT_RADIUS: 0.22,
@@ -23,6 +23,7 @@ export const defaultConfig = {
     // wind tunnel
     windTunnel: false,
     windSpeed: 55,          // simulation texels per second
+    windDir: [1, 0],        // unit vector, uv space (y up): [1,0] = left to right
     inflowWobble: 0.02,     // tiny inlet unsteadiness, seeds vortex shedding
     inflowBand: 0.05,
     inletStrength: 0.85,
@@ -140,7 +141,9 @@ export class FluidSimulation {
         const P = this.programs;
         const velocity = this.velocity;
         const obst = this.obstacleTexture;
-        const openX = c.windTunnel ? 1.0 : 0.0;
+        // (0,0) closes every wall; otherwise the flow axis opens up
+        const flowX = c.windTunnel ? c.windDir[0] : 0;
+        const flowY = c.windTunnel ? c.windDir[1] : 0;
 
         gl.disable(gl.BLEND);
 
@@ -150,6 +153,7 @@ export class FluidSimulation {
             gl.uniform2f(P.inflow.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
             gl.uniform1i(P.inflow.uniforms.uVelocity, velocity.read.attach(0));
             gl.uniform1i(P.inflow.uniforms.uObstacles, obst.attach(1));
+            gl.uniform2f(P.inflow.uniforms.uDir, c.windDir[0], c.windDir[1]);
             gl.uniform1f(P.inflow.uniforms.uSpeed, c.windSpeed);
             gl.uniform1f(P.inflow.uniforms.uBand, c.inflowBand);
             gl.uniform1f(P.inflow.uniforms.uInletStrength, Math.min(1.0, c.inletStrength));
@@ -183,7 +187,7 @@ export class FluidSimulation {
         gl.uniform2f(P.divergence.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
         gl.uniform1i(P.divergence.uniforms.uVelocity, velocity.read.attach(0));
         gl.uniform1i(P.divergence.uniforms.uObstacles, obst.attach(1));
-        gl.uniform1f(P.divergence.uniforms.uOpenX, openX);
+        gl.uniform2f(P.divergence.uniforms.uFlow, flowX, flowY);
         this.blit(this.divergence);
 
         P.clear.bind();
@@ -197,7 +201,7 @@ export class FluidSimulation {
         gl.uniform2f(P.pressure.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
         gl.uniform1i(P.pressure.uniforms.uDivergence, this.divergence.attach(0));
         gl.uniform1i(P.pressure.uniforms.uObstacles, obst.attach(1));
-        gl.uniform1f(P.pressure.uniforms.uOpenX, openX);
+        gl.uniform2f(P.pressure.uniforms.uFlow, flowX, flowY);
         for (let i = 0; i < c.PRESSURE_ITERATIONS; i++) {
             gl.uniform1i(P.pressure.uniforms.uPressure, this.pressure.read.attach(2));
             this.blit(this.pressure.write);
@@ -209,7 +213,7 @@ export class FluidSimulation {
         gl.uniform1i(P.gradient.uniforms.uPressure, this.pressure.read.attach(0));
         gl.uniform1i(P.gradient.uniforms.uVelocity, velocity.read.attach(1));
         gl.uniform1i(P.gradient.uniforms.uObstacles, obst.attach(2));
-        gl.uniform1f(P.gradient.uniforms.uOpenX, openX);
+        gl.uniform2f(P.gradient.uniforms.uFlow, flowX, flowY);
         this.blit(velocity.write);
         velocity.swap();
 
@@ -237,6 +241,7 @@ export class FluidSimulation {
             gl.uniform2f(P.inject.uniforms.texelSize, this.dye.texelSizeX, this.dye.texelSizeY);
             gl.uniform1i(P.inject.uniforms.uTarget, this.dye.read.attach(0));
             gl.uniform1i(P.inject.uniforms.uObstacles, obst.attach(1));
+            gl.uniform2f(P.inject.uniforms.uDir, c.windDir[0], c.windDir[1]);
             gl.uniform1f(P.inject.uniforms.uBand, c.inflowBand * 0.6);
             gl.uniform1f(P.inject.uniforms.uStripes, c.smokeStripes);
             gl.uniform1f(P.inject.uniforms.uAmount, Math.min(1.0, c.smokeRate * dt * 8.0));

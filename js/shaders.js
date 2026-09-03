@@ -83,7 +83,7 @@ void main () {
 `;
 
 // Divergence of the velocity field.
-//   * domain walls  : reflected (closed) or transparent (wind tunnel, uOpenX)
+//   * domain walls  : reflected (closed) or transparent (along the flow axis)
 //   * obstacle walls: reflected -> zero normal velocity on the solid face
 export const divergenceShader = `
 precision mediump float;
@@ -95,7 +95,7 @@ varying highp vec2 vT;
 varying highp vec2 vB;
 uniform sampler2D uVelocity;
 uniform sampler2D uObstacles;
-uniform float uOpenX;
+uniform vec2 uFlow;
 
 void main () {
     vec2 C = texture2D(uVelocity, vUv).xy;
@@ -104,10 +104,14 @@ void main () {
     float T = texture2D(uVelocity, vT).y;
     float B = texture2D(uVelocity, vB).y;
 
-    if (vL.x < 0.0) L = (uOpenX > 0.5) ? C.x : -C.x;
-    if (vR.x > 1.0) R = (uOpenX > 0.5) ? C.x : -C.x;
-    if (vT.y > 1.0) T = -C.y;
-    if (vB.y < 0.0) B = -C.y;
+    // the two walls the flow runs through are transparent, the other two are
+    // solid tunnel walls; with the wind off the box is closed on all sides
+    bool openH = abs(uFlow.x) > 0.5;
+    bool openV = abs(uFlow.y) > 0.5;
+    if (vL.x < 0.0) L = openH ? C.x : -C.x;
+    if (vR.x > 1.0) R = openH ? C.x : -C.x;
+    if (vT.y > 1.0) T = openV ? C.y : -C.y;
+    if (vB.y < 0.0) B = openV ? C.y : -C.y;
 
     if (texture2D(uObstacles, vL).x > 0.5) L = -C.x;
     if (texture2D(uObstacles, vR).x > 0.5) R = -C.x;
@@ -193,10 +197,13 @@ varying highp vec2 vB;
 uniform sampler2D uPressure;
 uniform sampler2D uDivergence;
 uniform sampler2D uObstacles;
-uniform float uOpenX;
+uniform vec2 uFlow;
 
 void main () {
-    if (uOpenX > 0.5 && vR.x > 1.0) {
+    // pinning the outlet to p = 0 is what lets the air leave the domain
+    bool outlet = (uFlow.x > 0.5 && vR.x > 1.0) || (uFlow.x < -0.5 && vL.x < 0.0)
+               || (uFlow.y > 0.5 && vT.y > 1.0) || (uFlow.y < -0.5 && vB.y < 0.0);
+    if (outlet) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
@@ -229,7 +236,7 @@ varying highp vec2 vB;
 uniform sampler2D uPressure;
 uniform sampler2D uVelocity;
 uniform sampler2D uObstacles;
-uniform float uOpenX;
+uniform vec2 uFlow;
 
 void main () {
     float C = texture2D(uPressure, vUv).x;
@@ -242,7 +249,10 @@ void main () {
     if (texture2D(uObstacles, vR).x > 0.5) R = C;
     if (texture2D(uObstacles, vT).x > 0.5) T = C;
     if (texture2D(uObstacles, vB).x > 0.5) B = C;
-    if (uOpenX > 0.5 && vR.x > 1.0) R = 0.0;
+    if (uFlow.x > 0.5 && vR.x > 1.0) R = 0.0;
+    if (uFlow.x < -0.5 && vL.x < 0.0) L = 0.0;
+    if (uFlow.y > 0.5 && vT.y > 1.0) T = 0.0;
+    if (uFlow.y < -0.5 && vB.y < 0.0) B = 0.0;
 
     vec2 velocity = texture2D(uVelocity, vUv).xy;
     velocity -= 0.5 * vec2(R - L, T - B);
@@ -260,6 +270,7 @@ precision highp sampler2D;
 varying vec2 vUv;
 uniform sampler2D uVelocity;
 uniform sampler2D uObstacles;
+uniform vec2 uDir;
 uniform float uSpeed;
 uniform float uBand;
 uniform float uInletStrength;
@@ -269,11 +280,14 @@ uniform float uWobble;
 
 void main () {
     vec2 v = texture2D(uVelocity, vUv).xy;
-    float inlet = smoothstep(uBand, 0.0, vUv.x) * uInletStrength;
-    float sponge = smoothstep(1.0 - uBand * 2.0, 1.0, vUv.x) * uSpongeStrength;
+    vec2 perp = vec2(-uDir.y, uDir.x);
+    // s runs 0 at the inlet edge to 1 at the outlet edge, whatever the direction
+    float s = dot(vUv - vec2(0.5), uDir) + 0.5;
+    float inlet = smoothstep(uBand, 0.0, s) * uInletStrength;
+    float sponge = smoothstep(1.0 - uBand * 2.0, 1.0, s) * uSpongeStrength;
     float w = clamp(max(inlet, sponge), 0.0, 1.0);
-    float wobble = uWobble * uSpeed * sin(uTime * 1.7 + vUv.y * 11.0);
-    v = mix(v, vec2(uSpeed, wobble), w);
+    float wobble = uWobble * uSpeed * sin(uTime * 1.7 + dot(vUv, perp) * 11.0);
+    v = mix(v, uSpeed * uDir + wobble * perp, w);
     float solid = step(0.5, texture2D(uObstacles, vUv).x);
     gl_FragColor = vec4(v * (1.0 - solid), 0.0, 1.0);
 }
@@ -287,6 +301,7 @@ precision highp sampler2D;
 varying vec2 vUv;
 uniform sampler2D uTarget;
 uniform sampler2D uObstacles;
+uniform vec2 uDir;
 uniform float uBand;
 uniform float uStripes;
 uniform float uAmount;
@@ -296,13 +311,15 @@ uniform vec3 uColorB;
 
 void main () {
     vec3 base = texture2D(uTarget, vUv).rgb;
-    float band = smoothstep(uBand, 0.0, vUv.x);
+    vec2 perp = vec2(-uDir.y, uDir.x);
+    float band = smoothstep(uBand, 0.0, dot(vUv - vec2(0.5), uDir) + 0.5);
+    float across = fract(dot(vUv, perp) + 1.0);
     float s = 1.0;
     if (uMode < 0.5) {
-        float f = fract(vUv.y * uStripes);
+        float f = fract(across * uStripes);
         s = 1.0 - smoothstep(0.10, 0.24, abs(f - 0.5));
     }
-    vec3 col = mix(uColorA, uColorB, vUv.y);
+    vec3 col = mix(uColorA, uColorB, across);
     float solid = step(0.5, texture2D(uObstacles, vUv).x);
     float k = clamp(s * band * uAmount, 0.0, 1.0);
     vec3 c = mix(base, col, k);

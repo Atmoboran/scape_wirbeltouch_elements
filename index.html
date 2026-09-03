@@ -30,7 +30,7 @@
       <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
     </button>
     <button id="btn-settings" class="chip" type="button" data-i18n-title="settings">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6M18.4 18.4l-1.6-1.6M7.2 7.2 5.6 5.6"/></svg>
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.1 14.4a1.6 1.6 0 0 0 .32 1.77l.06.06a1.94 1.94 0 1 1-2.75 2.75l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-.97 1.47v.17a1.94 1.94 0 1 1-3.88 0v-.09a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.77.32l-.06.06a1.94 1.94 0 1 1-2.75-2.75l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-.97h-.17a1.94 1.94 0 1 1 0-3.88h.09a1.6 1.6 0 0 0 1.46-1.05 1.6 1.6 0 0 0-.32-1.77l-.06-.06a1.94 1.94 0 1 1 2.75-2.75l.06.06a1.6 1.6 0 0 0 1.77.32h.08a1.6 1.6 0 0 0 .97-1.47v-.17a1.94 1.94 0 1 1 3.88 0v.09a1.6 1.6 0 0 0 .97 1.46 1.6 1.6 0 0 0 1.77-.32l.06-.06a1.94 1.94 0 1 1 2.75 2.75l-.06.06a1.6 1.6 0 0 0-.32 1.77v.08a1.6 1.6 0 0 0 1.47.97h.17a1.94 1.94 0 1 1 0 3.88h-.09a1.6 1.6 0 0 0-1.46.97Z"/></svg>
     </button>
   </div>
 </header>
@@ -38,62 +38,86 @@
 <p id="hint" class="hint" data-i18n="hintPlace"></p>
 
 <div id="dock">
-  <div id="tools" role="radiogroup" aria-label="Werkzeuge">
-    <button class="tool" type="button" data-tool="stir" data-i18n-title="toolStir">
-      <svg viewBox="0 0 24 24"><path d="M3 8h9.5a3.2 3.2 0 1 1 3.2 3.2H3"/><path d="M3 16h7.8a2.6 2.6 0 1 0-2.6-2.6"/></svg>
-      <span data-i18n="toolStir"></span>
-    </button>
-    <button class="tool" type="button" data-tool="circle" data-i18n-title="toolCircle">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/></svg>
-      <span data-i18n="toolCircle"></span>
-    </button>
-    <button class="tool" type="button" data-tool="square" data-i18n-title="toolSquare">
-      <svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg>
-      <span data-i18n="toolSquare"></span>
-    </button>
-    <button class="tool" type="button" data-tool="plate" data-i18n-title="toolPlate">
-      <svg viewBox="0 0 24 24"><rect x="3.5" y="10.4" width="17" height="3.2" rx="1.5" transform="rotate(-25 12 12)"/></svg>
-      <span data-i18n="toolPlate"></span>
-    </button>
-    <button class="tool" type="button" data-tool="airfoil" data-i18n-title="toolAirfoil">
-      <svg viewBox="0 0 24 24"><path d="M3.5 14.5c4-5.5 10-8 17-8-3.5 5.5-9.5 9-17 8Z"/></svg>
-      <span data-i18n="toolAirfoil"></span>
-    </button>
-    <button class="tool" type="button" data-tool="hill" data-i18n-title="toolHill">
-      <svg viewBox="0 0 24 24"><path d="M3 19 12 5l9 14Z"/></svg>
-      <span data-i18n="toolHill"></span>
-    </button>
-    <button class="tool" type="button" data-tool="brush" data-i18n-title="toolBrush">
-      <svg viewBox="0 0 24 24"><path d="M4 20c2.5.4 4.2-.6 5-2.6M17.6 3.9 20 6.3 9.6 16.8l-3.4 1 1-3.4Z"/></svg>
-      <span data-i18n="toolBrush"></span>
-    </button>
-    <button class="tool" type="button" data-tool="eraser" data-i18n-title="toolEraser">
-      <svg viewBox="0 0 24 24"><path d="M8.5 19h11M4.4 15.2 9 19.6l10-10-4.6-4.6Z"/></svg>
-      <span data-i18n="toolEraser"></span>
-    </button>
-  </div>
+  <button id="dock-toggle" class="dock-toggle" type="button" aria-expanded="true">
+    <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+    <span id="dock-toggle-label" data-i18n="hideTools"></span>
+  </button>
 
-  <div id="actions">
-    <button id="btn-wind" class="action primary" type="button">
-      <svg viewBox="0 0 24 24"><path d="M3 8h11.2a2.9 2.9 0 1 0-2.9-2.9"/><path d="M3 12.5h14.6a2.9 2.9 0 1 1-2.9 2.9"/><path d="M3 17h7.5"/></svg>
-      <span id="wind-label" data-i18n="windOn"></span>
-    </button>
-    <button id="btn-pause" class="action" type="button">
-      <svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>
-      <span id="pause-label" data-i18n="pause"></span>
-    </button>
-    <button id="btn-reset" class="action" type="button">
-      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4.5h-4.5"/></svg>
-      <span data-i18n="resetFlow"></span>
-    </button>
-    <button id="btn-undo" class="action" type="button">
-      <svg viewBox="0 0 24 24"><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H9"/><path d="M8 4.5 3.5 9 8 13.5"/></svg>
-      <span data-i18n="undo"></span>
-    </button>
-    <button id="btn-clear" class="action" type="button">
-      <svg viewBox="0 0 24 24"><path d="M5 7h14M9.5 7V4.8h5V7M6.7 7l.9 12.2h8.8L17.3 7"/></svg>
-      <span data-i18n="clear"></span>
-    </button>
+  <div id="dock-body">
+    <div id="tools" role="radiogroup" aria-label="Werkzeuge">
+      <button class="tool" type="button" data-tool="stir" data-i18n-title="toolStir">
+        <svg viewBox="0 0 24 24"><path d="M3 8h9.5a3.2 3.2 0 1 1 3.2 3.2H3"/><path d="M3 16h7.8a2.6 2.6 0 1 0-2.6-2.6"/></svg>
+        <span data-i18n="toolStir"></span>
+      </button>
+      <button class="tool" type="button" data-tool="circle" data-i18n-title="toolCircle">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/></svg>
+        <span data-i18n="toolCircle"></span>
+      </button>
+      <button class="tool" type="button" data-tool="square" data-i18n-title="toolSquare">
+        <svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg>
+        <span data-i18n="toolSquare"></span>
+      </button>
+      <button class="tool" type="button" data-tool="plate" data-i18n-title="toolPlate">
+        <svg viewBox="0 0 24 24"><rect x="3.5" y="10.4" width="17" height="3.2" rx="1.5" transform="rotate(-25 12 12)"/></svg>
+        <span data-i18n="toolPlate"></span>
+      </button>
+      <button class="tool" type="button" data-tool="airfoil" data-i18n-title="toolAirfoil">
+        <svg viewBox="0 0 24 24"><path d="M3.5 14.5c4-5.5 10-8 17-8-3.5 5.5-9.5 9-17 8Z"/></svg>
+        <span data-i18n="toolAirfoil"></span>
+      </button>
+      <button class="tool" type="button" data-tool="hill" data-i18n-title="toolHill">
+        <svg viewBox="0 0 24 24"><path d="M3 19 12 5l9 14Z"/></svg>
+        <span data-i18n="toolHill"></span>
+      </button>
+      <button class="tool" type="button" data-tool="brush" data-i18n-title="toolBrush">
+        <svg viewBox="0 0 24 24"><path d="M4 20c2.5.4 4.2-.6 5-2.6M17.6 3.9 20 6.3 9.6 16.8l-3.4 1 1-3.4Z"/></svg>
+        <span data-i18n="toolBrush"></span>
+      </button>
+      <button class="tool" type="button" data-tool="eraser" data-i18n-title="toolEraser">
+        <svg viewBox="0 0 24 24"><path d="M8.5 19h11M4.4 15.2 9 19.6l10-10-4.6-4.6Z"/></svg>
+        <span data-i18n="toolEraser"></span>
+      </button>
+    </div>
+
+    <div id="shapebar">
+      <label class="dock-slider">
+        <span id="dock-size-label" data-i18n="size"></span>
+        <input id="in-dock-size" type="range" min="2" max="30" step="0.5" value="11">
+        <output id="out-dock-size"></output>
+      </label>
+      <div id="rotate-group" class="rotate">
+        <button id="btn-rot-left" class="chip" type="button" data-i18n-title="rotateLeft">
+          <svg viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 1 2.2 5.3"/><path d="M4.5 7.2v4.9h4.9"/></svg>
+        </button>
+        <output id="out-dock-angle">0°</output>
+        <button id="btn-rot-right" class="chip" type="button" data-i18n-title="rotateRight">
+          <svg viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 0-2.2 5.3"/><path d="M19.5 7.2v4.9h-4.9"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="actions">
+      <button id="btn-wind" class="action primary" type="button">
+        <svg viewBox="0 0 24 24"><path d="M3 8h11.2a2.9 2.9 0 1 0-2.9-2.9"/><path d="M3 12.5h14.6a2.9 2.9 0 1 1-2.9 2.9"/><path d="M3 17h7.5"/></svg>
+        <span id="wind-label" data-i18n="windOn"></span>
+      </button>
+      <button id="btn-pause" class="action" type="button">
+        <svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>
+        <span id="pause-label" data-i18n="pause"></span>
+      </button>
+      <button id="btn-reset" class="action" type="button">
+        <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4.5h-4.5"/></svg>
+        <span data-i18n="resetFlow"></span>
+      </button>
+      <button id="btn-undo" class="action" type="button">
+        <svg viewBox="0 0 24 24"><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H9"/><path d="M8 4.5 3.5 9 8 13.5"/></svg>
+        <span data-i18n="undo"></span>
+      </button>
+      <button id="btn-clear" class="action" type="button">
+        <svg viewBox="0 0 24 24"><path d="M5 7h14M9.5 7V4.8h5V7M6.7 7l.9 12.2h8.8L17.3 7"/></svg>
+        <span data-i18n="clear"></span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -106,7 +130,8 @@
   </div>
 
   <section>
-    <h3 data-i18n="scenes">Szenen</h3>
+    <h3><span data-i18n="scenes">Szenen</span><button class="info" type="button" data-info="infoScenes" aria-label="info">i</button></h3>
+    <p class="infobox" id="infoScenes" data-i18n="infoScenes" hidden></p>
     <div id="presets" class="pillrow">
       <button class="pill" type="button" data-preset="cylinder" data-i18n="sceneCylinder"></button>
       <button class="pill" type="button" data-preset="airfoil" data-i18n="sceneAirfoil"></button>
@@ -121,7 +146,29 @@
   </section>
 
   <section>
-    <h3 data-i18n="view">Ansicht</h3>
+    <h3><span data-i18n="medium">Medium</span><button class="info" type="button" data-info="infoMedium" aria-label="info">i</button></h3>
+    <p class="infobox" id="infoMedium" data-i18n="infoMedium" hidden></p>
+    <div id="media" class="pillrow">
+      <button class="pill" type="button" data-medium="air" data-i18n="mediumAir"></button>
+      <button class="pill" type="button" data-medium="water" data-i18n="mediumWater"></button>
+    </div>
+  </section>
+
+  <section>
+    <h3><span data-i18n="direction">Windrichtung</span><button class="info" type="button" data-info="infoDirection" aria-label="info">i</button></h3>
+    <p class="infobox" id="infoDirection" data-i18n="infoDirection" hidden></p>
+    <div id="dirs" class="pillrow">
+      <button class="pill" type="button" data-dir="right" data-i18n="dirRight"></button>
+      <button class="pill" type="button" data-dir="left" data-i18n="dirLeft"></button>
+      <button class="pill" type="button" data-dir="down" data-i18n="dirDown"></button>
+      <button class="pill" type="button" data-dir="up" data-i18n="dirUp"></button>
+      <button class="pill" type="button" data-dir="off" data-i18n="dirOff"></button>
+    </div>
+  </section>
+
+  <section>
+    <h3><span data-i18n="view">Ansicht</span><button class="info" type="button" data-info="infoView" aria-label="info">i</button></h3>
+    <p class="infobox" id="infoView" data-i18n="infoView" hidden></p>
     <div id="views" class="pillrow">
       <button class="pill" type="button" data-view="0" data-i18n="viewDye"></button>
       <button class="pill" type="button" data-view="1" data-i18n="viewSpeed"></button>
@@ -131,7 +178,8 @@
   </section>
 
   <section>
-    <h3 data-i18n="smokeStyle">Rauchbild</h3>
+    <h3><span data-i18n="smokeStyle">Rauchbild</span><button class="info" type="button" data-info="infoSmoke" aria-label="info">i</button></h3>
+    <p class="infobox" id="infoSmoke" data-i18n="infoSmoke" hidden></p>
     <div id="smokemodes" class="pillrow">
       <button class="pill" type="button" data-smoke="0" data-i18n="smokeLines"></button>
       <button class="pill" type="button" data-smoke="1" data-i18n="smokeSheet"></button>
@@ -139,34 +187,46 @@
   </section>
 
   <section class="sliders">
-    <label class="slider">
-      <span><span data-i18n="windSpeed"></span><output id="out-wind"></output></span>
+    <div class="slider">
+      <label>
+        <span><span data-i18n="windSpeed"></span><button class="info" type="button" data-info="infoWind" aria-label="info">i</button></span>
+        <output id="out-wind"></output>
+      </label>
       <input id="in-wind" type="range" min="5" max="140" step="1" value="55">
-    </label>
-    <label class="slider">
-      <span><span data-i18n="size"></span><output id="out-size"></output></span>
-      <input id="in-size" type="range" min="2" max="30" step="0.5" value="11">
-    </label>
-    <label class="slider">
-      <span><span data-i18n="angle"></span><output id="out-angle"></output></span>
-      <input id="in-angle" type="range" min="-90" max="90" step="1" value="10">
-    </label>
-    <label class="slider">
-      <span><span data-i18n="stripes"></span><output id="out-stripes"></output></span>
+      <p class="infobox" id="infoWind" data-i18n="infoWind" hidden></p>
+    </div>
+    <div class="slider">
+      <label>
+        <span><span data-i18n="stripes"></span><button class="info" type="button" data-info="infoStripes" aria-label="info">i</button></span>
+        <output id="out-stripes"></output>
+      </label>
       <input id="in-stripes" type="range" min="4" max="48" step="1" value="22">
-    </label>
-    <label class="slider">
-      <span><span data-i18n="vorticity"></span><output id="out-curl"></output></span>
+      <p class="infobox" id="infoStripes" data-i18n="infoStripes" hidden></p>
+    </div>
+    <div class="slider">
+      <label>
+        <span><span data-i18n="vorticity"></span><button class="info" type="button" data-info="infoVorticity" aria-label="info">i</button></span>
+        <output id="out-curl"></output>
+      </label>
       <input id="in-curl" type="range" min="0" max="40" step="1" value="8">
-    </label>
-    <label class="slider">
-      <span><span data-i18n="fade"></span><output id="out-fade"></output></span>
-      <input id="in-fade" type="range" min="0" max="200" step="1" value="35">
-    </label>
-    <label class="slider">
-      <span><span data-i18n="quality"></span><output id="out-quality"></output></span>
+      <p class="infobox" id="infoVorticity" data-i18n="infoVorticity" hidden></p>
+    </div>
+    <div class="slider">
+      <label>
+        <span><span data-i18n="fade"></span><button class="info" type="button" data-info="infoFade" aria-label="info">i</button></span>
+        <output id="out-fade"></output>
+      </label>
+      <input id="in-fade" type="range" min="0" max="200" step="1" value="0">
+      <p class="infobox" id="infoFade" data-i18n="infoFade" hidden></p>
+    </div>
+    <div class="slider">
+      <label>
+        <span><span data-i18n="quality"></span><button class="info" type="button" data-info="infoQuality" aria-label="info">i</button></span>
+        <output id="out-quality"></output>
+      </label>
       <input id="in-quality" type="range" min="0" max="3" step="1" value="2">
-    </label>
+      <p class="infobox" id="infoQuality" data-i18n="infoQuality" hidden></p>
+    </div>
   </section>
 </aside>
 

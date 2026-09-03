@@ -1,7 +1,7 @@
 // Wiring: canvas sizing, touch/mouse input, obstacle placement, UI controls.
 
 import { FluidSimulation } from './simulation.js';
-import { ObstacleField, makeShape, PRESETS } from './obstacles.js';
+import { ObstacleField, makeShape, PRESETS, centroid } from './obstacles.js';
 import { applyLanguage, STRINGS } from './i18n.js';
 
 const QUALITY = [
@@ -10,9 +10,44 @@ const QUALITY = [
     { sim: 256, dye: 1024, iter: 32 },
     { sim: 352, dye: 1440, iter: 36 }
 ];
+
+// Two settings for the two media people know. Both solve the same equations -
+// what changes is the regime: wind around a building sits at a far higher
+// Reynolds number than a slow water flume, so it is choppier and less orderly.
+const MEDIA = {
+    air: {
+        windSpeed: 78,
+        VELOCITY_DISSIPATION: 0.03,
+        CURL: 15,
+        DENSITY_DISSIPATION: 0,
+        smokeStripes: 26,
+        inflowWobble: 0.03,
+        smokeColorA: [0.88, 0.92, 1.0],
+        smokeColorB: [1.0, 0.70, 0.42]
+    },
+    water: {
+        windSpeed: 34,
+        VELOCITY_DISSIPATION: 0.14,
+        CURL: 5,
+        DENSITY_DISSIPATION: 0,
+        smokeStripes: 14,
+        inflowWobble: 0.012,
+        smokeColorA: [0.30, 0.88, 0.95],
+        smokeColorB: [0.28, 0.42, 0.98]
+    }
+};
+
+const DIRECTIONS = {
+    right: [1, 0],
+    left: [-1, 0],
+    down: [0, -1],
+    up: [0, 1]
+};
+
 const MAX_PIXELS = 4.2e6;      // keeps 4K screens and weak GPUs civil
 const IDLE_RESET_MS = 4 * 60 * 1000;
 const DEFAULT_SCENE = 'cylinder';
+const ROTATE_STEP = 15;
 
 const simCanvas = document.getElementById('sim');
 const overlay = document.getElementById('overlay');
@@ -25,13 +60,15 @@ let sim = null;
 const state = {
     lang: (navigator.language || 'de').toLowerCase().startsWith('de') ? 'de' : 'en',
     tool: 'circle',
-    size: 11,
+    size: 11,          // obstacle radius, per cent of the domain height
+    pen: 2.5,          // freehand pen half width, per cent of the domain height
     angle: 10,
     quality: 2,
+    medium: 'air',
+    dirKey: 'right',
     selected: null,
     overlayDirty: true,
-    lastInteraction: performance.now(),
-    ghost: null
+    lastInteraction: performance.now()
 };
 
 let dict = STRINGS[state.lang];
@@ -40,11 +77,14 @@ try {
     sim = new FluidSimulation(simCanvas, field);
 } catch (err) {
     console.error(err);
-    const fatal = document.getElementById('fatal');
-    fatal.hidden = false;
+    document.getElementById('fatal').hidden = false;
     document.getElementById('fatal-text').textContent = STRINGS[state.lang].noWebGL;
     document.getElementById('fatal-detail').textContent = err.message;
 }
+
+const el = id => document.getElementById(id);
+const clamp = (v, lo, hi) => (v < lo ? lo : (v > hi ? hi : v));
+const clamp01 = v => clamp(v, 0, 1);
 
 /* ------------------------------------------------------------------ sizing */
 
@@ -69,6 +109,7 @@ function sizeCanvases () {
 /* ------------------------------------------------------------------- input */
 
 const pointers = new Map();
+let gesture = null;
 
 function localPos (event) {
     const rect = overlay.getBoundingClientRect();
@@ -78,9 +119,9 @@ function localPos (event) {
     };
 }
 
-function clamp01 (v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
-
-function brushRadius () { return Math.max(0.012, state.size / 100 * 0.3); }
+function isShapeTool () {
+    return state.tool !== 'stir' && state.tool !== 'eraser';
+}
 
 function markObstaclesChanged () {
     field.touch();
@@ -95,8 +136,28 @@ function onPointerDown (event) {
     const p = localPos(event);
     const entry = { x: p.x, y: p.y, mode: 'stir', shape: null, grab: { x: 0, y: 0 }, color: randomColor() };
 
+    // A second finger turns the touch into a rotate / resize gesture instead of
+    // dropping another obstacle.
+    if (pointers.size > 0 && isShapeTool()) {
+        const others = Array.from(pointers.values());
+        const anchor = others[others.length - 1];
+        const target = field.hitTest(octx, p.x, p.y, overlay.width, overlay.height) ||
+            anchor.shape || state.selected;
+        if (target) {
+            entry.mode = 'gesture';
+            entry.shape = target;
+            anchor.mode = 'gesture';
+            anchor.shape = target;
+            state.selected = target;
+            startGesture(target, anchor, p);
+            pointers.set(event.pointerId, entry);
+            syncShapeControls(target);
+            showHint('hintRotate');
+            return;
+        }
+    }
+
     if (state.tool === 'stir') {
-        entry.mode = 'stir';
         sim.splat(p.x, 1 - p.y, 0, 0, entry.color);
     } else if (state.tool === 'eraser') {
         entry.mode = 'erase';
@@ -108,9 +169,9 @@ function onPointerDown (event) {
             entry.shape = hit;
             entry.grab = { x: hit.x - p.x, y: hit.y - p.y };
             state.selected = hit;
-            syncShapeSliders(hit);
+            syncShapeControls(hit);
         } else if (state.tool === 'brush') {
-            const shape = makeShape('brush', p.x, p.y, brushRadius());
+            const shape = makeShape('brush', p.x, p.y, state.pen / 100, 0);
             shape.points = [{ x: p.x, y: p.y }];
             field.add(shape);
             entry.mode = 'brush';
@@ -134,10 +195,19 @@ function onPointerMove (event) {
     event.preventDefault();
     state.lastInteraction = performance.now();
     const p = localPos(event);
+    const prevX = entry.x;
+    const prevY = entry.y;
+    entry.x = p.x;
+    entry.y = p.y;
 
+    if (entry.mode === 'gesture') {
+        const pair = Array.from(pointers.values()).filter(e => e.mode === 'gesture');
+        if (pair.length >= 2) applyGesture(pair[0], pair[1]);
+        return;
+    }
     if (entry.mode === 'stir') {
-        const dx = (p.x - entry.x) * sim.config.SPLAT_FORCE;
-        const dy = -(p.y - entry.y) * sim.config.SPLAT_FORCE;
+        const dx = (p.x - prevX) * sim.config.SPLAT_FORCE;
+        const dy = -(p.y - prevY) * sim.config.SPLAT_FORCE;
         if (dx !== 0 || dy !== 0) sim.splat(p.x, 1 - p.y, dx, dy, entry.color);
     } else if (entry.mode === 'erase') {
         eraseAt(p);
@@ -153,16 +223,83 @@ function onPointerMove (event) {
             markObstaclesChanged();
         }
     }
-    entry.x = p.x;
-    entry.y = p.y;
 }
 
 function onPointerUp (event) {
+    const entry = pointers.get(event.pointerId);
+    if (entry && entry.mode === 'gesture') {
+        gesture = null;
+        // the finger left on the screen must not start dragging the shape
+        pointers.forEach(e => { if (e.mode === 'gesture') e.mode = 'none'; });
+    }
     pointers.delete(event.pointerId);
     try {
         if (overlay.hasPointerCapture(event.pointerId)) overlay.releasePointerCapture(event.pointerId);
     } catch (e) { /* ignore */ }
     state.lastInteraction = performance.now();
+}
+
+/* ---- two finger rotate and resize ---------------------------------------- */
+
+function pixelSpan (a, b) {
+    return {
+        dx: (b.x - a.x) * overlay.width,
+        dy: (b.y - a.y) * overlay.height
+    };
+}
+
+function startGesture (shape, a, b) {
+    const v = pixelSpan(a, b);
+    const pts = shape.points ? shape.points.map(q => ({ x: q.x, y: q.y })) : null;
+    const c = pts && pts.length ? centroid(pts) : { x: shape.x, y: shape.y };
+    gesture = {
+        shape,
+        ang0: Math.atan2(v.dy, v.dx),
+        dist0: Math.hypot(v.dx, v.dy),
+        baseAngle: shape.angle || 0,
+        baseR: shape.r,
+        baseX: shape.x,
+        baseY: shape.y,
+        mid0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        points0: pts,
+        cx: c.x,
+        cy: c.y
+    };
+}
+
+function applyGesture (a, b) {
+    if (!gesture || gesture.dist0 < 4) return;
+    const s = gesture.shape;
+    const v = pixelSpan(a, b);
+    const dist = Math.hypot(v.dx, v.dy);
+    const factor = clamp(dist / gesture.dist0, 0.15, 8);
+    // screen y points down, so a positive screen rotation is a negative one on
+    // the shape, whose angle is measured counter-clockwise
+    const deltaDeg = -(Math.atan2(v.dy, v.dx) - gesture.ang0) * 180 / Math.PI;
+    const dx = (a.x + b.x) / 2 - gesture.mid0.x;
+    const dy = (a.y + b.y) / 2 - gesture.mid0.y;
+
+    s.angle = wrapAngle(gesture.baseAngle + deltaDeg);
+    if (s.type === 'brush' && gesture.points0) {
+        s.r = clamp(gesture.baseR * factor, 0.003, 0.25);
+        s.points = gesture.points0.map(q => ({
+            x: clamp01(gesture.cx + (q.x - gesture.cx) * factor + dx),
+            y: clamp01(gesture.cy + (q.y - gesture.cy) * factor + dy)
+        }));
+    } else {
+        s.r = clamp(gesture.baseR * factor, 0.02, 0.45);
+        s.x = clamp01(gesture.baseX + dx);
+        s.y = clamp01(gesture.baseY + dy);
+    }
+    markObstaclesChanged();
+    syncShapeControls(s);
+}
+
+function wrapAngle (deg) {
+    let a = deg % 360;
+    if (a > 180) a -= 360;
+    if (a < -180) a += 360;
+    return a;
 }
 
 function eraseAt (p) {
@@ -204,8 +341,6 @@ overlay.addEventListener('contextmenu', e => e.preventDefault());
 
 /* ---------------------------------------------------------------------- UI */
 
-const el = id => document.getElementById(id);
-
 function setPressed (nodes, matcher) {
     nodes.forEach(node => node.setAttribute('aria-pressed', matcher(node) ? 'true' : 'false'));
 }
@@ -215,20 +350,23 @@ toolButtons.forEach(btn => {
     btn.addEventListener('click', () => {
         state.tool = btn.dataset.tool;
         setPressed(toolButtons, n => n.dataset.tool === state.tool);
+        updateShapeBar();
         showHint(state.tool === 'stir' ? 'hintStir' : state.tool === 'eraser' ? 'hintErase' : 'hintPlace');
         state.lastInteraction = performance.now();
     });
 });
 
 const presetButtons = Array.from(document.querySelectorAll('[data-preset]'));
-presetButtons.forEach(btn => {
-    btn.addEventListener('click', () => loadPreset(btn.dataset.preset));
-});
+presetButtons.forEach(btn => btn.addEventListener('click', () => loadPreset(btn.dataset.preset)));
 
 const viewButtons = Array.from(document.querySelectorAll('[data-view]'));
-viewButtons.forEach(btn => {
-    btn.addEventListener('click', () => setView(parseInt(btn.dataset.view, 10)));
-});
+viewButtons.forEach(btn => btn.addEventListener('click', () => setView(parseInt(btn.dataset.view, 10))));
+
+const mediumButtons = Array.from(document.querySelectorAll('[data-medium]'));
+mediumButtons.forEach(btn => btn.addEventListener('click', () => setMedium(btn.dataset.medium)));
+
+const dirButtons = Array.from(document.querySelectorAll('[data-dir]'));
+dirButtons.forEach(btn => btn.addEventListener('click', () => setDirection(btn.dataset.dir)));
 
 const smokeButtons = Array.from(document.querySelectorAll('[data-smoke]'));
 smokeButtons.forEach(btn => {
@@ -240,10 +378,50 @@ smokeButtons.forEach(btn => {
     });
 });
 
+document.querySelectorAll('.info').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const box = el(btn.dataset.info);
+        if (!box) return;
+        box.hidden = !box.hidden;
+        btn.setAttribute('aria-pressed', box.hidden ? 'false' : 'true');
+        state.lastInteraction = performance.now();
+    });
+});
+
 function setView (mode) {
     if (!sim) return;
     sim.config.displayMode = mode;
     setPressed(viewButtons, n => parseInt(n.dataset.view, 10) === mode);
+    state.lastInteraction = performance.now();
+}
+
+function setMedium (key) {
+    const preset = MEDIA[key];
+    if (!preset || !sim) return;
+    state.medium = key;
+    Object.assign(sim.config, preset);
+    setPressed(mediumButtons, n => n.dataset.medium === key);
+    el('in-wind').value = String(preset.windSpeed);
+    el('in-curl').value = String(preset.CURL);
+    el('in-stripes').value = String(preset.smokeStripes);
+    el('in-fade').value = String(Math.round(preset.DENSITY_DISSIPATION * 100));
+    updateSliderOutputs();
+    state.lastInteraction = performance.now();
+}
+
+function setDirection (key) {
+    if (!sim) return;
+    if (key === 'off') {
+        setWind(false);
+    } else {
+        // dye left over from the old direction only muddies the picture
+        const changed = state.dirKey !== key && sim.config.windTunnel;
+        state.dirKey = key;
+        sim.config.windDir = DIRECTIONS[key];
+        if (changed) sim.reset();
+        setWind(true);
+    }
+    setPressed(dirButtons, n => n.dataset.dir === (sim.config.windTunnel ? state.dirKey : 'off'));
     state.lastInteraction = performance.now();
 }
 
@@ -262,9 +440,9 @@ function loadPreset (name) {
 function setWind (on) {
     if (!sim) return;
     sim.config.windTunnel = on;
-    const btn = el('btn-wind');
-    btn.classList.toggle('on', on);
+    el('btn-wind').classList.toggle('on', on);
     el('wind-label').textContent = on ? dict.windOff : dict.windOn;
+    setPressed(dirButtons, n => n.dataset.dir === (on ? state.dirKey : 'off'));
     state.lastInteraction = performance.now();
 }
 
@@ -308,9 +486,7 @@ el('btn-fullscreen').addEventListener('click', () => {
     else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
 });
 
-el('btn-lang').addEventListener('click', () => {
-    setLanguage(state.lang === 'de' ? 'en' : 'de');
-});
+el('btn-lang').addEventListener('click', () => setLanguage(state.lang === 'de' ? 'en' : 'de'));
 
 function setLanguage (lang) {
     state.lang = lang;
@@ -321,37 +497,93 @@ function setLanguage (lang) {
         el('pause-label').textContent = sim.config.paused ? dict.play : dict.pause;
     }
     updateSliderOutputs();
+    updateShapeBar();
+    updateDockToggle();
     try { localStorage.setItem('wirbeltouch.lang', lang); } catch (e) { /* private mode */ }
+}
+
+/* ----------------------------------------------------- dock: collapse, shape */
+
+let dockCollapsed = false;
+
+function setDockCollapsed (collapsed) {
+    dockCollapsed = collapsed;
+    el('dock-body').hidden = collapsed;
+    document.body.classList.toggle('dock-collapsed', collapsed);
+    el('dock-toggle').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    updateDockToggle();
+    state.lastInteraction = performance.now();
+}
+
+function updateDockToggle () {
+    el('dock-toggle-label').textContent = dockCollapsed ? dict.showTools : dict.hideTools;
+}
+
+el('dock-toggle').addEventListener('click', () => setDockCollapsed(!dockCollapsed));
+
+function updateShapeBar () {
+    const shapeTool = isShapeTool();
+    el('shapebar').hidden = !shapeTool;
+    if (!shapeTool) return;
+    const brush = state.tool === 'brush';
+    const input = el('in-dock-size');
+    input.min = brush ? '0.5' : '2';
+    input.max = brush ? '8' : '30';
+    input.step = brush ? '0.25' : '0.5';
+    input.value = String(brush ? state.pen : state.size);
+    el('dock-size-label').textContent = brush ? dict.penWidth : dict.size;
+    el('out-dock-size').textContent = input.value;
+    el('rotate-group').hidden = state.tool === 'circle';
+    el('out-dock-angle').textContent = Math.round(state.angle) + '°';
+}
+
+el('in-dock-size').addEventListener('input', () => {
+    const v = parseFloat(el('in-dock-size').value);
+    const sel = state.selected;
+    if (state.tool === 'brush') {
+        state.pen = v;
+        if (sel && sel.type === 'brush') { sel.r = v / 100; markObstaclesChanged(); }
+    } else {
+        state.size = v;
+        if (sel && sel.type !== 'brush') { sel.r = v / 100; markObstaclesChanged(); }
+    }
+    el('out-dock-size').textContent = String(v);
+    state.lastInteraction = performance.now();
+});
+
+function nudgeAngle (delta) {
+    state.angle = wrapAngle(state.angle + delta);
+    if (state.selected) {
+        state.selected.angle = state.angle;
+        markObstaclesChanged();
+    }
+    el('out-dock-angle').textContent = Math.round(state.angle) + '°';
+    state.lastInteraction = performance.now();
+}
+
+el('btn-rot-left').addEventListener('click', () => nudgeAngle(ROTATE_STEP));
+el('btn-rot-right').addEventListener('click', () => nudgeAngle(-ROTATE_STEP));
+
+function syncShapeControls (shape) {
+    if (!shape) return;
+    if (shape.type === 'brush') state.pen = shape.r * 100;
+    else state.size = shape.r * 100;
+    state.angle = shape.angle || 0;
+    updateShapeBar();
 }
 
 /* ------------------------------------------------------------------ sliders */
 
 function bindSlider (id, apply) {
     const input = el(id);
-    const handler = () => {
+    input.addEventListener('input', () => {
         apply(parseFloat(input.value));
         updateSliderOutputs();
         state.lastInteraction = performance.now();
-    };
-    input.addEventListener('input', handler);
-    return input;
+    });
 }
 
 bindSlider('in-wind', v => { if (sim) sim.config.windSpeed = v; });
-bindSlider('in-size', v => {
-    state.size = v;
-    if (state.selected) {
-        state.selected.r = state.selected.type === 'brush' ? brushRadius() : v / 100;
-        markObstaclesChanged();
-    }
-});
-bindSlider('in-angle', v => {
-    state.angle = v;
-    if (state.selected && state.selected.type !== 'brush' && state.selected.type !== 'circle') {
-        state.selected.angle = v;
-        markObstaclesChanged();
-    }
-});
 bindSlider('in-stripes', v => { if (sim) sim.config.smokeStripes = v; });
 bindSlider('in-curl', v => { if (sim) sim.config.CURL = v; });
 bindSlider('in-fade', v => { if (sim) sim.config.DENSITY_DISSIPATION = v / 100; });
@@ -365,26 +597,13 @@ bindSlider('in-quality', v => {
     sim.initFramebuffers();
 });
 
-function syncShapeSliders (shape) {
-    if (!shape) return;
-    if (shape.type !== 'brush') {
-        el('in-size').value = String(Math.round(shape.r * 1000) / 10);
-        state.size = shape.r * 100;
-    }
-    el('in-angle').value = String(shape.angle || 0);
-    state.angle = shape.angle || 0;
-    updateSliderOutputs();
-}
-
 function updateSliderOutputs () {
     el('out-wind').textContent = el('in-wind').value;
-    el('out-size').textContent = el('in-size').value;
-    el('out-angle').textContent = el('in-angle').value + '°';
     el('out-stripes').textContent = el('in-stripes').value;
     el('out-curl').textContent = el('in-curl').value;
     el('out-fade').textContent = el('in-fade').value;
-    const qualityNames = [dict.qualityLow, dict.qualityMid, dict.qualityHigh, dict.qualityUltra];
-    el('out-quality').textContent = qualityNames[parseInt(el('in-quality').value, 10)] || '';
+    const names = [dict.qualityLow, dict.qualityMid, dict.qualityHigh, dict.qualityUltra];
+    el('out-quality').textContent = names[parseInt(el('in-quality').value, 10)] || '';
 }
 
 /* -------------------------------------------------------------------- hints */
@@ -409,6 +628,8 @@ window.addEventListener('keydown', e => {
         case 'c': field.clear(); state.selected = null; markObstaclesChanged(); break;
         case 'r': sim.reset(); break;
         case 'h': el('help').hidden = !el('help').hidden; break;
+        case 'q': nudgeAngle(ROTATE_STEP); break;
+        case 'e': nudgeAngle(-ROTATE_STEP); break;
         case '1': setView(0); break;
         case '2': setView(1); break;
         case '3': setView(2); break;
@@ -440,7 +661,7 @@ function frame (now) {
     sim.render();
 
     if (state.overlayDirty) {
-        field.renderOverlay(octx, overlay.width, overlay.height, state.ghost);
+        field.renderOverlay(octx, overlay.width, overlay.height, null);
         state.overlayDirty = false;
     }
 
@@ -454,6 +675,7 @@ function resetToDefaultScene () {
     loadPreset(DEFAULT_SCENE);
     setPaused(false);
     setView(0);
+    setDirection('right');
     el('panel').hidden = true;
     el('help').hidden = true;
 }
@@ -468,11 +690,15 @@ function boot () {
     setPressed(toolButtons, n => n.dataset.tool === state.tool);
     setPressed(smokeButtons, n => n.dataset.smoke === '0');
     setPressed(viewButtons, n => n.dataset.view === '0');
+    setDockCollapsed(window.innerWidth < 720);
+    updateShapeBar();
 
     sizeCanvases();
     if (!sim) return;
 
     sim.initFramebuffers();
+    setMedium('air');
+    setDirection('right');
     loadPreset(DEFAULT_SCENE);
     setPaused(false);
     showHint('hintPlace');

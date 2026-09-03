@@ -122,7 +122,7 @@ export class ObstacleField {
 
 function paintShape (ctx, s, w, h, alpha) {
     const p = shapePath(s, w, h);
-    const cy = s.y * h;
+    const cy = (s.type === 'brush' && s.points && s.points.length ? centroid(s.points).y : s.y) * h;
     const R = Math.max(2, s.r * h);
     const grad = ctx.createLinearGradient(0, cy - R, 0, cy + R);
     grad.addColorStop(0, 'rgba(236, 240, 247, 1)');
@@ -184,11 +184,22 @@ export function shapePath (s, w, h) {
             break;
         }
         case 'brush': {
+            // a freehand stroke turns about its own centre of gravity
             const pts = s.points || [];
             if (pts.length > 0) {
-                path.moveTo(pts[0].x * w, pts[0].y * h);
-                for (let i = 1; i < pts.length; i++) path.lineTo(pts[i].x * w, pts[i].y * h);
-                if (pts.length === 1) path.lineTo(pts[0].x * w + 0.01, pts[0].y * h);
+                const c = centroid(pts);
+                const rot = (px, py) => {
+                    const ox = px * w - c.x * w;
+                    const oy = py * h - c.y * h;
+                    return [c.x * w + ox * cos - oy * sin, c.y * h + ox * sin + oy * cos];
+                };
+                const first = rot(pts[0].x, pts[0].y);
+                path.moveTo(first[0], first[1]);
+                for (let i = 1; i < pts.length; i++) {
+                    const q = rot(pts[i].x, pts[i].y);
+                    path.lineTo(q[0], q[1]);
+                }
+                if (pts.length === 1) path.lineTo(first[0] + 0.01, first[1]);
             }
             return { path, isStroke: true, lineWidth: 2 * R };
         }
@@ -197,6 +208,13 @@ export function shapePath (s, w, h) {
         }
     }
     return { path, isStroke: false, lineWidth: 0 };
+}
+
+export function centroid (pts) {
+    let x = 0;
+    let y = 0;
+    for (const p of pts) { x += p.x; y += p.y; }
+    return { x: x / pts.length, y: y / pts.length };
 }
 
 function polygon (path, pts, tx) {
