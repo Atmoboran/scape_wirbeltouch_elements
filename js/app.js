@@ -19,7 +19,7 @@ const MEDIA = {
         windSpeed: 50,
         VELOCITY_DISSIPATION: 0.09,
         CURL: 6,
-        DENSITY_DISSIPATION: 0,
+        DENSITY_DISSIPATION: 0.12,
         smokeStripes: 24,
         inflowWobble: 0.015,
         smokeColorA: [0.88, 0.92, 1.0],
@@ -29,7 +29,7 @@ const MEDIA = {
         windSpeed: 30,
         VELOCITY_DISSIPATION: 0.16,
         CURL: 3,
-        DENSITY_DISSIPATION: 0,
+        DENSITY_DISSIPATION: 0.10,
         smokeStripes: 14,
         inflowWobble: 0.010,
         smokeColorA: [0.30, 0.88, 0.95],
@@ -128,6 +128,33 @@ function markObstaclesChanged () {
     state.overlayDirty = true;
 }
 
+/* ------------------------------------------------------- drag to the bin */
+
+const trashEl = document.getElementById('trash');
+let trashHintShown = false;
+
+function showTrash (on) {
+    if (on) {
+        if (!trashHintShown) { trashHintShown = true; showHint('hintDrag'); }
+        trashEl.hidden = false;
+        // let the browser lay it out before the transition starts
+        requestAnimationFrame(() => trashEl.classList.add('show'));
+    } else {
+        trashEl.classList.remove('show', 'hot');
+        trashEl.hidden = true;
+    }
+}
+
+function overTrash (clientX, clientY) {
+    if (trashEl.hidden) return false;
+    const r = trashEl.getBoundingClientRect();
+    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+}
+
+function draggingShape (mode) {
+    return mode === 'move' || mode === 'brush';
+}
+
 function onPointerDown (event) {
     if (!sim) return;
     event.preventDefault();
@@ -186,6 +213,7 @@ function onPointerDown (event) {
         }
         markObstaclesChanged();
     }
+    if (draggingShape(entry.mode)) showTrash(true);
     pointers.set(event.pointerId, entry);
 }
 
@@ -215,6 +243,7 @@ function onPointerMove (event) {
         entry.shape.x = clamp01(p.x + entry.grab.x);
         entry.shape.y = clamp01(p.y + entry.grab.y);
         markObstaclesChanged();
+        trashEl.classList.toggle('hot', overTrash(event.clientX, event.clientY));
     } else if (entry.mode === 'brush' && entry.shape) {
         const pts = entry.shape.points;
         const last = pts[pts.length - 1];
@@ -222,11 +251,19 @@ function onPointerMove (event) {
             pts.push({ x: p.x, y: p.y });
             markObstaclesChanged();
         }
+        trashEl.classList.toggle('hot', overTrash(event.clientX, event.clientY));
     }
 }
 
 function onPointerUp (event) {
     const entry = pointers.get(event.pointerId);
+    if (entry && draggingShape(entry.mode) && entry.shape &&
+        overTrash(event.clientX, event.clientY)) {
+        if (state.selected === entry.shape) state.selected = null;
+        field.remove(entry.shape);
+        markObstaclesChanged();
+    }
+    if (entry && (draggingShape(entry.mode) || entry.mode === 'gesture')) showTrash(false);
     if (entry && entry.mode === 'gesture') {
         gesture = null;
         // the finger left on the screen must not start dragging the shape
@@ -478,7 +515,21 @@ el('btn-settings').addEventListener('click', () => {
 });
 el('panel-close').addEventListener('click', () => { el('panel').hidden = true; });
 
-el('btn-help').addEventListener('click', () => { el('help').hidden = false; });
+const tabButtons = Array.from(document.querySelectorAll('.tab'));
+function setHelpTab (id) {
+    tabButtons.forEach(b => {
+        const on = b.dataset.tab === id;
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        el(b.dataset.tab).hidden = !on;
+    });
+}
+tabButtons.forEach(b => b.addEventListener('click', () => setHelpTab(b.dataset.tab)));
+
+el('btn-help').addEventListener('click', () => {
+    setHelpTab('tab-basic');
+    el('help').hidden = false;
+    el('help').querySelector('.sheet').scrollTop = 0;
+});
 el('help-close').addEventListener('click', () => { el('help').hidden = true; });
 el('help').addEventListener('click', e => { if (e.target.id === 'help') el('help').hidden = true; });
 
@@ -691,6 +742,7 @@ function boot () {
     setPressed(toolButtons, n => n.dataset.tool === state.tool);
     setPressed(smokeButtons, n => n.dataset.smoke === '0');
     setPressed(viewButtons, n => n.dataset.view === '0');
+    setHelpTab('tab-basic');
     setDockCollapsed(window.innerWidth < 720);
     updateShapeBar();
 

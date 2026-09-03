@@ -176,7 +176,7 @@ svg .fill { fill: currentColor; stroke: none; }
   top: 0; right: 0;
   height: 100%;
   width: min(340px, 88vw);
-  padding: max(14px, env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));
+  padding: 0 16px calc(20px + env(safe-area-inset-bottom));
   overflow-y: auto;
   background: rgba(9, 15, 26, 0.92);
   border-left: 1px solid var(--glass-line);
@@ -187,7 +187,18 @@ svg .fill { fill: currentColor; stroke: none; }
   touch-action: pan-y;
 }
 #panel[hidden] { display: none; }
-.panel-head { display: flex; align-items: center; justify-content: space-between; }
+.panel-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 -16px;
+  padding: max(14px, env(safe-area-inset-top)) 16px 12px;
+  background: #0a1019;
+  border-bottom: 1px solid var(--glass-line);
+}
 .panel-head h2 { margin: 0; font-size: 17px; font-weight: 620; }
 #panel section { margin-top: 18px; }
 #panel h3 {
@@ -424,4 +435,76 @@ input[type="range"]::-moz-range-thumb {
   #shapebar { width: calc(100vw - 20px); justify-content: space-between; gap: 8px; padding: 8px 10px; }
   .dock-slider span { display: none; }
   body.dock-collapsed .hint { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 56px); }
+}
+
+/* ------------------------------------------------------------ drag-to-delete */
+#trash {
+  position: fixed;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: calc(max(10px, env(safe-area-inset-bottom)) + 8px);
+  z-index: 6;
+  width: 82px;
+  height: 82px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 18px;
+  border: 1.5px dashed rgba(190, 205, 225, 0.45);
+  background: rgba(16, 24, 39, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.15;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 140ms ease, transform 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+#trash[hidden] { display: none; }
+#trash.show { opacity: 1; transform: scale(1); }
+#trash svg { width: 26px; height: 26px; }
+#trash.hot {
+  background: rgba(226, 74, 58, 0.9);
+  border-color: rgba(255, 200, 190, 0.9);
+  border-style: solid;
+  color: #fff;
+  transform: scale(1.12);
+}
+
+/* ------------------------------------------------------ separator in the dock */
+.divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 2px;
+  background: var(--glass-line);
+}
+
+/* ----------------------------------------------------------------- help tabs */
+.tabs { display: flex; gap: 6px; margin: 0 0 14px; }
+.tab {
+  padding: 8px 14px;
+  min-height: 40px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+}
+.tab[aria-pressed="true"] {
+  background: rgba(79, 195, 247, 0.18);
+  border-color: rgba(79, 195, 247, 0.5);
+  color: #dbf4ff;
+}
+.prose[hidden] { display: none; }
+.prose h3 { margin: 18px 0 8px; font-size: 15px; color: var(--ink); }
+.prose ul { margin: 0 0 12px; padding-left: 20px; }
+.prose em { color: #b9cbe2; }
+
+@media (max-width: 720px) {
+  #trash { width: 68px; height: 68px; font-size: 9.5px; }
+  #trash svg { width: 22px; height: 22px; }
 }

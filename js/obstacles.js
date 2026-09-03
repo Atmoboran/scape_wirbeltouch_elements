@@ -139,7 +139,10 @@ function paintShape (ctx, s, w, h, alpha) {
     const p = shapePath(s, w, h);
     const cy = (s.type === 'brush' && s.points && s.points.length ? centroid(s.points).y : s.y) * h;
     const R = Math.max(2, s.r * h);
-    const grad = ctx.createLinearGradient(0, cy - R, 0, cy + R);
+    // shade over the shape's own height, otherwise a tall tower gets a hard
+    // band across its middle
+    const span = s.type === 'box' ? R * (s.hr || 1) : R;
+    const grad = ctx.createLinearGradient(0, cy - span, 0, cy + span);
     grad.addColorStop(0, 'rgba(236, 240, 247, 1)');
     grad.addColorStop(1, 'rgba(150, 162, 180, 1)');
 
@@ -179,6 +182,11 @@ export function shapePath (s, w, h) {
     switch (s.type) {
         case 'circle': {
             path.arc(cx, cy, R, 0, Math.PI * 2);
+            break;
+        }
+        case 'box': {
+            const hh = R * (s.hr || 1);
+            polygon(path, [[-R, -hh], [R, -hh], [R, hh], [-R, hh]], tx);
             break;
         }
         case 'square': {
@@ -260,6 +268,14 @@ function airfoilPoints (R) {
     return upper.concat(lower);
 }
 
+// A building standing on the ground: x centre, half width and full height,
+// both as fractions of the domain height.
+function tower (x, halfWidth, height) {
+    const shape = makeShape('box', x, 1 - height / 2, halfWidth, 0);
+    shape.hr = (height / 2) / halfWidth;
+    return shape;
+}
+
 // Ready-made scenes. aspect = width / height of the domain.
 export const PRESETS = {
     empty: () => [],
@@ -282,6 +298,20 @@ export const PRESETS = {
     slit: () => [
         makeShape('plate', 0.42, 0.20, 0.22, 90),
         makeShape('plate', 0.42, 0.80, 0.22, 90)
+    ],
+    // Frankfurt seen from the west: the cluster of towers around the
+    // Bankenviertel, with the tallest two in the middle.
+    skyline: () => [
+        tower(0.20, 0.022, 0.16),
+        tower(0.265, 0.030, 0.27),
+        tower(0.325, 0.019, 0.41),
+        tower(0.395, 0.034, 0.21),
+        tower(0.460, 0.027, 0.50),
+        tower(0.525, 0.023, 0.35),
+        tower(0.590, 0.036, 0.19),
+        tower(0.660, 0.026, 0.43),
+        tower(0.730, 0.032, 0.27),
+        tower(0.800, 0.021, 0.17)
     ],
     tandem: () => [
         makeShape('circle', 0.28, 0.5, 0.085),

@@ -59,6 +59,55 @@ export const STRINGS = {
         sceneVenturi: 'Düse',
         sceneSlit: 'Spalt',
         sceneTandem: 'Zwei Zylinder',
+        sceneSkyline: 'Frankfurter Skyline',
+        dropToDelete: 'Zum Löschen hierher ziehen',
+        helpTabBasic: 'Kurz erklärt',
+        helpTabAdvanced: 'Erweiterte Erklärung',
+        hintDrag: 'Hindernis in den Papierkorb ziehen löscht es',
+        helpAdvanced: `
+            <p>Gerechnet werden die <strong>inkompressiblen Navier-Stokes-Gleichungen</strong>
+            in zwei Dimensionen, nach dem Verfahren <em>Stable Fluids</em> (Jos Stam, 1999).
+            Jedes Bild durchläuft vier Schritte:</p>
+            <ol>
+              <li><strong>Anströmung</strong>: In einem schmalen Band am Einlass wird die
+              Geschwindigkeit auf den Sollwert gezogen, am Auslass dämpft ein Schwamm
+              Rückwirkungen.</li>
+              <li><strong>Wirbelverstärkung</strong> (vorticity confinement): gibt kleinen
+              Wirbeln Energie zurück, die das grobe Gitter wegmittelt.</li>
+              <li><strong>Projektion</strong>: Divergenz berechnen, daraus per Jacobi-Iteration
+              das Druckfeld lösen, den Druckgradienten abziehen. Erst das macht die
+              Strömung quellenfrei.</li>
+              <li><strong>Advektion</strong>: Geschwindigkeit und Rauch werden semi-lagrangesch
+              rückwärts entlang der Bahnen interpoliert.</li>
+            </ol>
+            <p>Das Rechengitter hat bei mittlerer Qualität rund <strong>455 × 256 Zellen</strong>,
+            der Rauch wird auf einem feineren Gitter mit etwa 1820 × 1024 Punkten transportiert.
+            Alle Schritte laufen als Fragment-Shader auf der Grafikkarte – etwa 10 Millionen
+            Pixelberechnungen pro Bild, komplett im Browser, ohne Server.</p>
+            <p><strong>Hindernisse</strong> stecken in einer Maskentextur. An festen Rändern wird
+            die Normalgeschwindigkeit gespiegelt (macht sie an der Wand zu null), der Druck
+            bekommt eine Neumann-Bedingung, und im Inneren wird die Geschwindigkeit gelöscht –
+            zusammen eine Haftbedingung. Die Kante läuft weich über etwa eine Zelle, sonst
+            würde jede schräge Wand als Treppe wirken und an jeder Stufe einen Miniwirbel
+            abwerfen. Beim Einschalten wird das ganze Feld sofort mit der Anströmung gefüllt,
+            damit keine künstliche Startfront durchs Bild läuft.</p>
+            <h3>Wo das Modell an seine Grenzen kommt</h3>
+            <ul>
+              <li>Die Druckgleichung wird <strong>nicht auskonvergiert</strong>: 32 Jacobi-Schritte
+              tragen Information nur etwa 32 Zellen weit pro Bild. Es bleibt ein kleiner Rest
+              Kompressibilität.</li>
+              <li>Die Zähigkeit ist <strong>numerisch, nicht physikalisch</strong>. Es gibt also keine
+              einstellbare Reynolds-Zahl; die Voreinstellungen Luft und Wasser treffen nur
+              das ungefähre Regime.</li>
+              <li>Die Wirbelverstärkung ist ein <strong>Trick</strong>, kein Term der Gleichungen. Sie
+              führt dem Feld Energie zu – zu hohe Werte lassen die Strömung unruhig werden.</li>
+              <li>Zwei Dimensionen sind nicht drei: In 2D können Wirbel keine Wirbelfäden
+              strecken, die Energie wandert zu großen statt zu kleinen Skalen. Echte
+              Turbulenz sieht anders aus.</li>
+            </ul>
+            <p>Kurz: qualitativ richtig und zum Ausprobieren gedacht, aber keine
+            Ingenieursimulation. Wer Kräfte oder Druckbeiwerte braucht, rechnet mit
+            richtiger CFD.</p>`,
         view: 'Ansicht',
         viewDye: 'Rauch',
         viewSpeed: 'Geschwindigkeit',
@@ -163,6 +212,51 @@ export const STRINGS = {
         sceneVenturi: 'Nozzle',
         sceneSlit: 'Slit',
         sceneTandem: 'Two cylinders',
+        sceneSkyline: 'Frankfurt skyline',
+        dropToDelete: 'Drag here to delete',
+        helpTabBasic: 'In short',
+        helpTabAdvanced: 'Technical details',
+        hintDrag: 'Drag an obstacle onto the bin to delete it',
+        helpAdvanced: `
+            <p>What is being solved are the <strong>incompressible Navier-Stokes
+            equations</strong> in two dimensions, using the <em>Stable Fluids</em> scheme
+            (Jos Stam, 1999). Every frame runs four steps:</p>
+            <ol>
+              <li><strong>Inflow</strong>: in a narrow band at the inlet the velocity is pulled
+              towards the free stream, and a sponge near the outlet swallows reflections.</li>
+              <li><strong>Vorticity confinement</strong>: hands energy back to the small eddies
+              that the coarse grid averages away.</li>
+              <li><strong>Projection</strong>: compute the divergence, solve the pressure field
+              from it with Jacobi iterations, subtract the pressure gradient. This is the
+              step that makes the flow source-free.</li>
+              <li><strong>Advection</strong>: velocity and smoke are carried semi-Lagrangian,
+              by tracing back along the flow.</li>
+            </ol>
+            <p>At medium quality the grid is about <strong>455 × 256 cells</strong>, while the smoke
+            rides on a finer one of roughly 1820 × 1024. Every step is a fragment shader on
+            the graphics card — some 10 million pixel evaluations per frame, entirely in the
+            browser, with no server involved.</p>
+            <p><strong>Obstacles</strong> live in a mask texture. At a solid face the normal
+            velocity is reflected (making it zero on the wall), the pressure gets a Neumann
+            condition, and the velocity inside is wiped — together a no-slip wall. The edge
+            ramps over about one cell, because otherwise a diagonal wall acts as a staircase
+            and sheds a little vortex at every step. Switching the wind on fills the whole
+            field with the free stream at once, so no artificial starting front travels
+            through the picture.</p>
+            <h3>Where the model reaches its limits</h3>
+            <ul>
+              <li>The pressure equation is <strong>not converged</strong>: 32 Jacobi sweeps carry
+              information only about 32 cells per frame. A little compressibility survives.</li>
+              <li>The viscosity is <strong>numerical, not physical</strong>. There is no Reynolds
+              number to set; the air and water presets only approximate the regime.</li>
+              <li>Vorticity confinement is a <strong>trick</strong>, not a term of the equations. It
+              adds energy to the field — too much of it makes the flow restless.</li>
+              <li>Two dimensions are not three: in 2D vortices cannot stretch vortex lines, so
+              energy travels towards large scales rather than small ones. Real turbulence
+              behaves differently.</li>
+            </ul>
+            <p>In short: qualitatively right and made for playing with, but not an engineering
+            simulation. If you need forces or pressure coefficients, use proper CFD.</p>`,
         view: 'View',
         viewDye: 'Smoke',
         viewSpeed: 'Speed',

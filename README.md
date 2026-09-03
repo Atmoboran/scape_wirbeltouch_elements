@@ -18,7 +18,8 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   injected at the inlet. The inflow can come **from any of the four sides** or
   be switched off entirely.
 * **Obstacles** – cylinder, block, flat plate, airfoil, hill and a freehand
-  brush. Tap to place, drag to move, eraser to remove.
+  brush. Tap to place, drag to move, and either drag onto the bin that appears
+  while dragging or use the eraser to remove.
 * **Rotate and resize** – with the arrows right below the tools, or with **two
   fingers** directly on an obstacle (rotate and pinch at once). Freehand
   strokes turn about their own centre of gravity.
@@ -27,9 +28,15 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   equations; what the presets change is the regime, i.e. roughly the Reynolds
   number, plus the look of the dye.
 * **Scenes** – ready-made setups: cylinder (Kármán vortex street), airfoil,
-  air brake, two cylinders, buildings, mountain range, nozzle, slit.
+  air brake, two cylinders, buildings, the Frankfurt skyline, mountain range,
+  nozzle, slit.
 * **Views** – smoke, speed, vorticity or pressure.
-* **Stir** – switch the wind off and push the air around by hand.
+* **Stir** – push the air around by hand. It sits next to the flow commands
+  rather than among the obstacle tools, since it acts on the air, not on the
+  scenery.
+* **Help** has two tabs: a short explanation for visitors and a technical one
+  covering the scheme, the grid, the boundary treatment and, explicitly, where
+  the model stops being trustworthy.
 * **Info buttons** – every setting has a small `i` that opens a short
   explanation of what it does and what it means physically.
 * German / English interface, touch and mouse, keyboard shortcuts
