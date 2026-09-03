@@ -276,6 +276,33 @@ function tower (x, halfWidth, height) {
     return shape;
 }
 
+// A room built from four walls, with a window in the windward side and
+// optionally one opposite. The point of the pair: a single opening lets almost
+// no air through, because the air has no way out - open the far side and the
+// room flushes. Requires the pressure solve to respect the global mass
+// balance, which is what the coarse grid correction is there for.
+function roomWalls (aspect, openWindward, openLeeward) {
+    const W = 0.19;
+    const cx = 0.5;
+    const cy = 0.5;
+    const halfW = W / aspect;
+    const shapes = [
+        makeShape('plate', cx, cy - W, W, 0),
+        makeShape('plate', cx, cy + W, W, 0)
+    ];
+    const wall = (x, open) => {
+        if (!open) {
+            shapes.push(makeShape('plate', x, cy, W, 90));
+            return;
+        }
+        shapes.push(makeShape('plate', x, cy - W * 0.62, W * 0.38, 90));
+        shapes.push(makeShape('plate', x, cy + W * 0.62, W * 0.38, 90));
+    };
+    wall(cx - halfW, openWindward);
+    wall(cx + halfW, openLeeward);
+    return shapes;
+}
+
 // Ready-made scenes. aspect = width / height of the domain.
 export const PRESETS = {
     empty: () => [],
@@ -313,6 +340,8 @@ export const PRESETS = {
         tower(0.730, 0.032, 0.27),
         tower(0.800, 0.021, 0.17)
     ],
+    roomOne: aspect => roomWalls(aspect, true, false),
+    roomCross: aspect => roomWalls(aspect, true, true),
     tandem: () => [
         makeShape('circle', 0.28, 0.5, 0.085),
         makeShape('circle', 0.55, 0.5, 0.085)

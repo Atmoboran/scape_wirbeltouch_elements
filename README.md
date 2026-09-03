@@ -29,7 +29,9 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   number, plus the look of the dye.
 * **Scenes** – ready-made setups: cylinder (Kármán vortex street), airfoil,
   air brake, two cylinders, buildings, the Frankfurt skyline, mountain range,
-  nozzle, slit.
+  nozzle, slit, and a pair showing cross-ventilation: a room with one window
+  barely exchanges any air, the same room with a window on the far side
+  flushes right through.
 * **Views** – smoke, speed, vorticity or pressure.
 * **Stir** – push the air around by hand. It sits next to the flow commands
   rather than among the obstacle tools, since it acts on the air, not on the
@@ -56,7 +58,7 @@ Stable-fluids scheme per frame:
    whichever edge the flow comes from, weak sponge at the outlet, plus a
    whisper of unsteadiness that lets vortex shedding start),
 2. vorticity confinement (re-sharpens eddies the coarse grid would smear),
-3. projection: divergence → Jacobi pressure solve → gradient subtraction,
+3. projection: divergence → pressure solve → gradient subtraction,
 4. semi-Lagrangian advection of velocity and smoke.
 
 Obstacles enter as a boundary mask texture (`1 = solid`). Solid neighbours get
@@ -66,6 +68,19 @@ solids after projection and advection — i.e. a no-slip wall. In wind-tunnel
 mode the two walls along the flow axis become transparent and the outlet edge
 is pinned to `p = 0` so air can actually leave; the other two stay solid tunnel
 walls, and turning the wind off closes the box on all sides again.
+
+The pressure solve is Jacobi smoothing plus a correction computed on a four
+times coarser grid. The coarse level is not an optimisation — it is what makes
+the solver respect a *global* mass balance. Jacobi carries information one cell
+per sweep, so with fine sweeps alone the pressure inside an enclosure can never
+build up enough to stop an inflow, and air pours endlessly through a room with
+a single opening. Measured on a sealed room with one windward window, the net
+through-flow drops from 6.7 to 0.6 and the air inside from 17 to 1.3 (free
+stream 45) once the coarse correction is in; with a second window opposite, the
+through-flow rises to 16 and the interior to 40. The divergence and gradient
+operators also form a proper MAC pair (forward/backward differences), so that
+`div(grad(p))` is exactly the five-point Laplacian being inverted — with central
+differences on both, no number of iterations can drive the divergence to zero.
 
 The mask is painted from the shape list into a hidden 2D canvas at twice the
 simulation resolution; the visible, crisp obstacles are drawn on a separate

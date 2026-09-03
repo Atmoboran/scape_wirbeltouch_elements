@@ -465,7 +465,7 @@ function setDirection (key) {
 function loadPreset (name) {
     if (!sim) return;
     const builder = PRESETS[name] || PRESETS.empty;
-    field.set(builder());
+    field.set(builder(overlay.width / Math.max(1, overlay.height)));
     state.selected = null;
     markObstaclesChanged();
     setPressed(presetButtons, n => n.dataset.preset === name);

@@ -98,29 +98,40 @@ uniform sampler2D uObstacles;
 uniform vec2 uFlow;
 
 void main () {
-    vec2 C = texture2D(uVelocity, vUv).xy;
-    float L = texture2D(uVelocity, vL).x;
-    float R = texture2D(uVelocity, vR).x;
-    float T = texture2D(uVelocity, vT).y;
-    float B = texture2D(uVelocity, vB).y;
+    if (texture2D(uObstacles, vUv).x > 0.5) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
 
-    // the two walls the flow runs through are transparent, the other two are
-    // solid tunnel walls; with the wind off the box is closed on all sides
+    // The stored velocity is read as a MAC arrangement: x is the flux through
+    // the cell's LEFT face, y through its BOTTOM face. With the backward
+    // difference in the gradient step this makes div(grad(p)) exactly the five
+    // point Laplacian that the pressure solve inverts. With central
+    // differences on both (the collocated form) it is the Laplacian of spacing
+    // two instead, the projection is then correcting a different equation than
+    // it solves, and no number of iterations can drive the divergence to zero -
+    // which is what let air pour endlessly into a room with a single opening.
+    vec2 C = texture2D(uVelocity, vUv).xy;
+    float west = C.x;
+    float east = texture2D(uVelocity, vR).x;
+    float south = C.y;
+    float north = texture2D(uVelocity, vT).y;
+
+    // a face against a solid carries no flux
+    if (texture2D(uObstacles, vL).x > 0.5) west = 0.0;
+    if (texture2D(uObstacles, vR).x > 0.5) east = 0.0;
+    if (texture2D(uObstacles, vB).x > 0.5) south = 0.0;
+    if (texture2D(uObstacles, vT).x > 0.5) north = 0.0;
+
+    // domain walls: closed unless the flow runs through them
     bool openH = abs(uFlow.x) > 0.5;
     bool openV = abs(uFlow.y) > 0.5;
-    if (vL.x < 0.0) L = openH ? C.x : -C.x;
-    if (vR.x > 1.0) R = openH ? C.x : -C.x;
-    if (vT.y > 1.0) T = openV ? C.y : -C.y;
-    if (vB.y < 0.0) B = openV ? C.y : -C.y;
+    if (vL.x < 0.0 && !openH) west = 0.0;
+    if (vR.x > 1.0 && !openH) east = 0.0;
+    if (vB.y < 0.0 && !openV) south = 0.0;
+    if (vT.y > 1.0 && !openV) north = 0.0;
 
-    if (texture2D(uObstacles, vL).x > 0.5) L = -C.x;
-    if (texture2D(uObstacles, vR).x > 0.5) R = -C.x;
-    if (texture2D(uObstacles, vT).x > 0.5) T = -C.y;
-    if (texture2D(uObstacles, vB).x > 0.5) B = -C.y;
-
-    float solid = step(0.5, texture2D(uObstacles, vUv).x);
-    float div = 0.5 * (R - L + T - B);
-    gl_FragColor = vec4(div * (1.0 - solid), 0.0, 0.0, 1.0);
+    gl_FragColor = vec4((east - west) + (north - south), 0.0, 0.0, 1.0);
 }
 `;
 
@@ -239,26 +250,29 @@ uniform sampler2D uObstacles;
 uniform vec2 uFlow;
 
 void main () {
-    float C = texture2D(uPressure, vUv).x;
-    float L = texture2D(uPressure, vL).x;
-    float R = texture2D(uPressure, vR).x;
-    float T = texture2D(uPressure, vT).x;
-    float B = texture2D(uPressure, vB).x;
-
-    if (texture2D(uObstacles, vL).x > 0.5) L = C;
-    if (texture2D(uObstacles, vR).x > 0.5) R = C;
-    if (texture2D(uObstacles, vT).x > 0.5) T = C;
-    if (texture2D(uObstacles, vB).x > 0.5) B = C;
-    if (uFlow.x > 0.5 && vR.x > 1.0) R = 0.0;
-    if (uFlow.x < -0.5 && vL.x < 0.0) L = 0.0;
-    if (uFlow.y > 0.5 && vT.y > 1.0) T = 0.0;
-    if (uFlow.y < -0.5 && vB.y < 0.0) B = 0.0;
+    // backward difference, the partner of the forward difference used for the
+    // divergence - see the note there
+    float pC = texture2D(uPressure, vUv).x;
+    float pW = texture2D(uPressure, vL).x;
+    float pS = texture2D(uPressure, vB).x;
 
     vec2 velocity = texture2D(uVelocity, vUv).xy;
-    velocity -= 0.5 * vec2(R - L, T - B);
+    velocity -= vec2(pC - pW, pC - pS);
 
-    float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
-    gl_FragColor = vec4(velocity * (1.0 - solid), 0.0, 1.0);
+    bool solidC = texture2D(uObstacles, vUv).x > 0.5;
+    bool solidW = texture2D(uObstacles, vL).x > 0.5;
+    bool solidS = texture2D(uObstacles, vB).x > 0.5;
+    bool openH = abs(uFlow.x) > 0.5;
+    bool openV = abs(uFlow.y) > 0.5;
+
+    // no flux through a face that touches a solid, or through a closed wall
+    if (solidC || solidW) velocity.x = 0.0;
+    if (solidC || solidS) velocity.y = 0.0;
+    if (vL.x < 0.0 && !openH) velocity.x = 0.0;
+    if (vB.y < 0.0 && !openV) velocity.y = 0.0;
+    if (solidC) velocity = vec2(0.0);
+
+    gl_FragColor = vec4(velocity, 0.0, 1.0);
 }
 `;
 
@@ -275,6 +289,92 @@ uniform vec2 uValue;
 void main () {
     float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
     gl_FragColor = vec4(uValue * (1.0 - solid), 0.0, 1.0);
+}
+`;
+
+// ---------------------------------------------------------------------------
+// Coarse grid correction for the pressure solve.
+//
+// Jacobi is a smoother: it flattens short wavelength error fast and long
+// wavelength error at O(N^2) sweeps. The mass balance of a room is exactly a
+// long wavelength constraint - the pressure inside has to rise until it stops
+// the inflow - so 32 sweeps never get there and air keeps pouring through a
+// single opening. Solving the residual equation on a 4x coarser grid costs a
+// sixteenth per sweep and moves information four times further, which is what
+// makes a room with one window fill up and then stall, the way a real one does.
+
+// r = div - laplacian(p), the part of the equation the smoother has not solved
+export const residualShader = `
+precision mediump float;
+precision mediump sampler2D;
+varying highp vec2 vUv;
+varying highp vec2 vL;
+varying highp vec2 vR;
+varying highp vec2 vT;
+varying highp vec2 vB;
+uniform sampler2D uPressure;
+uniform sampler2D uDivergence;
+uniform sampler2D uObstacles;
+uniform vec2 uFlow;
+
+void main () {
+    bool outlet = (uFlow.x > 0.5 && vR.x > 1.0) || (uFlow.x < -0.5 && vL.x < 0.0)
+               || (uFlow.y > 0.5 && vT.y > 1.0) || (uFlow.y < -0.5 && vB.y < 0.0);
+    if (outlet || texture2D(uObstacles, vUv).x > 0.5) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+
+    float C = texture2D(uPressure, vUv).x;
+    float L = texture2D(uPressure, vL).x;
+    float R = texture2D(uPressure, vR).x;
+    float T = texture2D(uPressure, vT).x;
+    float B = texture2D(uPressure, vB).x;
+
+    if (texture2D(uObstacles, vL).x > 0.5) L = C;
+    if (texture2D(uObstacles, vR).x > 0.5) R = C;
+    if (texture2D(uObstacles, vT).x > 0.5) T = C;
+    if (texture2D(uObstacles, vB).x > 0.5) B = C;
+
+    float lap = L + R + T + B - 4.0 * C;
+    gl_FragColor = vec4(texture2D(uDivergence, vUv).x - lap, 0.0, 0.0, 1.0);
+}
+`;
+
+// average the residual onto the coarse grid; uScale carries the (h_c/h_f)^2
+// factor the coarse Laplacian needs
+export const restrictShader = `
+precision mediump float;
+precision mediump sampler2D;
+varying highp vec2 vUv;
+uniform sampler2D uResidual;
+uniform vec2 uFineTexel;
+uniform float uScale;
+
+void main () {
+    vec2 e = uFineTexel;
+    float r = texture2D(uResidual, vUv + vec2(-e.x, -e.y)).x
+            + texture2D(uResidual, vUv + vec2( e.x, -e.y)).x
+            + texture2D(uResidual, vUv + vec2(-e.x,  e.y)).x
+            + texture2D(uResidual, vUv + vec2( e.x,  e.y)).x;
+    gl_FragColor = vec4(r * 0.25 * uScale, 0.0, 0.0, 1.0);
+}
+`;
+
+// add the interpolated coarse correction back onto the fine pressure
+export const prolongShader = `
+precision mediump float;
+precision mediump sampler2D;
+varying highp vec2 vUv;
+uniform sampler2D uPressure;
+uniform sampler2D uCoarse;
+uniform sampler2D uObstacles;
+
+void main () {
+    float p = texture2D(uPressure, vUv).x;
+    float e = texture2D(uCoarse, vUv).x;
+    if (texture2D(uObstacles, vUv).x > 0.5) e = 0.0;
+    gl_FragColor = vec4(p + e, 0.0, 0.0, 1.0);
 }
 `;
 

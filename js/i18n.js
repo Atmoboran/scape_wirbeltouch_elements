@@ -60,6 +60,8 @@ export const STRINGS = {
         sceneSlit: 'Spalt',
         sceneTandem: 'Zwei Zylinder',
         sceneSkyline: 'Frankfurter Skyline',
+        sceneRoomOne: 'Raum, ein Fenster',
+        sceneRoomCross: 'Querlüftung',
         dropToDelete: 'Zum Löschen hierher ziehen',
         helpTabBasic: 'Kurz erklärt',
         helpTabAdvanced: 'Erweiterte Erklärung',
@@ -74,9 +76,10 @@ export const STRINGS = {
               Rückwirkungen.</li>
               <li><strong>Wirbelverstärkung</strong> (vorticity confinement): gibt kleinen
               Wirbeln Energie zurück, die das grobe Gitter wegmittelt.</li>
-              <li><strong>Projektion</strong>: Divergenz berechnen, daraus per Jacobi-Iteration
-              das Druckfeld lösen, den Druckgradienten abziehen. Erst das macht die
-              Strömung quellenfrei.</li>
+              <li><strong>Projektion</strong>: Divergenz berechnen, daraus das Druckfeld
+              lösen, den Druckgradienten abziehen. Erst das macht die Strömung
+              quellenfrei. Gelöst wird mit Jacobi-Iterationen plus einer Korrektur auf
+              einem vierfach gröberen Gitter.</li>
               <li><strong>Advektion</strong>: Geschwindigkeit und Rauch werden semi-lagrangesch
               rückwärts entlang der Bahnen interpoliert.</li>
             </ol>
@@ -93,9 +96,11 @@ export const STRINGS = {
             damit keine künstliche Startfront durchs Bild läuft.</p>
             <h3>Wo das Modell an seine Grenzen kommt</h3>
             <ul>
-              <li>Die Druckgleichung wird <strong>nicht auskonvergiert</strong>: 32 Jacobi-Schritte
-              tragen Information nur etwa 32 Zellen weit pro Bild. Es bleibt ein kleiner Rest
-              Kompressibilität.</li>
+              <li>Die Druckgleichung wird <strong>nicht bis zur letzten Stelle auskonvergiert</strong>.
+              Ein Jacobi-Schritt trägt Information nur eine Zelle weit, für große Gebiete wäre
+              das viel zu langsam – deshalb läuft zusätzlich eine Korrektur auf einem
+              gröberen Gitter. Erst sie sorgt dafür, dass auch große Räume ihre Massenbilanz
+              einhalten. Ein kleiner Rest Kompressibilität bleibt.</li>
               <li>Die Zähigkeit ist <strong>numerisch, nicht physikalisch</strong>. Es gibt also keine
               einstellbare Reynolds-Zahl; die Voreinstellungen Luft und Wasser treffen nur
               das ungefähre Regime.</li>
@@ -147,6 +152,9 @@ export const STRINGS = {
               <li>Unter <strong>Ansicht</strong> kannst du statt des Rauchs die
               Geschwindigkeit, die Wirbelstärke oder den Druck einfärben.</li>
             </ol>
+            <p>Probier die beiden Raum-Szenen aus: Mit nur einem Fenster passiert fast
+            nichts – die Luft hat keinen Weg hinaus. Erst ein zweites Fenster auf der
+            gegenüberliegenden Seite lüftet den Raum wirklich durch.</p>
             <p>Hinter einem runden Hindernis lösen sich abwechselnd Wirbel ab: die
             <em>Kármánsche Wirbelstraße</em>. Genau solche Wirbel verursachen das
             Brummen von Leitungen im Wind und die Böen hinter Gebäuden.</p>
@@ -213,6 +221,8 @@ export const STRINGS = {
         sceneSlit: 'Slit',
         sceneTandem: 'Two cylinders',
         sceneSkyline: 'Frankfurt skyline',
+        sceneRoomOne: 'Room, one window',
+        sceneRoomCross: 'Cross ventilation',
         dropToDelete: 'Drag here to delete',
         helpTabBasic: 'In short',
         helpTabAdvanced: 'Technical details',
@@ -227,8 +237,9 @@ export const STRINGS = {
               <li><strong>Vorticity confinement</strong>: hands energy back to the small eddies
               that the coarse grid averages away.</li>
               <li><strong>Projection</strong>: compute the divergence, solve the pressure field
-              from it with Jacobi iterations, subtract the pressure gradient. This is the
-              step that makes the flow source-free.</li>
+              from it, subtract the pressure gradient. This is the step that makes the flow
+              source-free. It is solved with Jacobi iterations plus a correction on a four
+              times coarser grid.</li>
               <li><strong>Advection</strong>: velocity and smoke are carried semi-Lagrangian,
               by tracing back along the flow.</li>
             </ol>
@@ -245,8 +256,10 @@ export const STRINGS = {
             through the picture.</p>
             <h3>Where the model reaches its limits</h3>
             <ul>
-              <li>The pressure equation is <strong>not converged</strong>: 32 Jacobi sweeps carry
-              information only about 32 cells per frame. A little compressibility survives.</li>
+              <li>The pressure equation is <strong>not converged to the last digit</strong>. A
+              Jacobi sweep carries information only one cell, far too slow for large regions,
+              so a correction runs on a coarser grid as well. That correction is what makes
+              even a large room respect its mass balance. A little compressibility survives.</li>
               <li>The viscosity is <strong>numerical, not physical</strong>. There is no Reynolds
               number to set; the air and water presets only approximate the regime.</li>
               <li>Vorticity confinement is a <strong>trick</strong>, not a term of the equations. It
@@ -296,6 +309,9 @@ export const STRINGS = {
               <li>Under <strong>View</strong> you can colour the field by speed,
               vorticity or pressure instead of smoke.</li>
             </ol>
+            <p>Try the two room scenes: with a single window almost nothing happens -
+            the air has no way out. Only a second window on the opposite side really
+            flushes the room through.</p>
             <p>Behind a round obstacle vortices peel off alternately: the
             <em>Kármán vortex street</em>. The same vortices make power lines hum in
             the wind and cause the gusts you feel behind buildings.</p>

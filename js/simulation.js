@@ -14,7 +14,12 @@ export const defaultConfig = {
     DYE_RESOLUTION: 1024,
     MASK_SCALE: 2,
     PRESSURE_ITERATIONS: 32,
-    PRESSURE_DECAY: 0.85,
+    COARSE_SCALE: 4,            // coarse grid for the pressure correction
+    COARSE_ITERATIONS: 40,      // cheap: one sweep costs a sixteenth of a fine one
+    // No artificial decay of the pressure field. 0.85 (as the demos this grew
+    // out of use) caps how large the pressure can ever get, and the pressure
+    // inside a room with one opening has to grow large to stop the inflow.
+    PRESSURE_DECAY: 1.0,
     DENSITY_DISSIPATION: 0.12,
     VELOCITY_DISSIPATION: 0.09,
     CURL: 6,
@@ -66,6 +71,9 @@ export class FluidSimulation {
             pressure: new Program(gl, vs, S.pressureShader),
             gradient: new Program(gl, vs, S.gradientSubtractShader),
             fill: new Program(gl, vs, S.fillShader),
+            residual: new Program(gl, vs, S.residualShader),
+            restrict: new Program(gl, vs, S.restrictShader),
+            prolong: new Program(gl, vs, S.prolongShader),
             inflow: new Program(gl, vs, S.inflowShader),
             inject: new Program(gl, vs, S.injectShader),
             display: new Program(gl, vs, S.displayShader)
@@ -108,6 +116,11 @@ export class FluidSimulation {
         this.divergence = createFBO(gl, simRes.width, simRes.height, r.internalFormat, r.format, texType, gl.NEAREST);
         this.curl = createFBO(gl, simRes.width, simRes.height, r.internalFormat, r.format, texType, gl.NEAREST);
         this.pressure = createDoubleFBO(gl, simRes.width, simRes.height, r.internalFormat, r.format, texType, gl.NEAREST);
+        this.residual = createFBO(gl, simRes.width, simRes.height, r.internalFormat, r.format, texType, filtering);
+        const cw = Math.max(4, Math.floor(simRes.width / this.config.COARSE_SCALE));
+        const ch = Math.max(4, Math.floor(simRes.height / this.config.COARSE_SCALE));
+        this.coarseResidual = createFBO(gl, cw, ch, r.internalFormat, r.format, texType, gl.NEAREST);
+        this.coarsePressure = createDoubleFBO(gl, cw, ch, r.internalFormat, r.format, texType, filtering);
 
         this.obstacles.resizeMask(
             Math.round(simRes.width * this.config.MASK_SCALE),
@@ -216,20 +229,18 @@ export class FluidSimulation {
         P.clear.bind();
         gl.uniform2f(P.clear.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
         gl.uniform1i(P.clear.uniforms.uTexture, this.pressure.read.attach(0));
-        gl.uniform1f(P.clear.uniforms.value, c.PRESSURE_DECAY);
+        // With the wind on, the outlet pins the pressure level and the field can
+        // be carried over untouched. With it off every boundary is Neumann, the
+        // level is free to drift, and a slow bleed keeps it bounded.
+        const open = (flowX !== 0 || flowY !== 0);
+        gl.uniform1f(P.clear.uniforms.value, open ? c.PRESSURE_DECAY : Math.min(c.PRESSURE_DECAY, 0.99));
         this.blit(this.pressure.write);
         this.pressure.swap();
 
-        P.pressure.bind();
-        gl.uniform2f(P.pressure.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
-        gl.uniform1i(P.pressure.uniforms.uDivergence, this.divergence.attach(0));
-        gl.uniform1i(P.pressure.uniforms.uObstacles, obst.attach(1));
-        gl.uniform2f(P.pressure.uniforms.uFlow, flowX, flowY);
-        for (let i = 0; i < c.PRESSURE_ITERATIONS; i++) {
-            gl.uniform1i(P.pressure.uniforms.uPressure, this.pressure.read.attach(2));
-            this.blit(this.pressure.write);
-            this.pressure.swap();
-        }
+        const half = Math.max(1, Math.floor(c.PRESSURE_ITERATIONS / 2));
+        this.smoothPressure(half, flowX, flowY);
+        this.coarseCorrection(flowX, flowY);
+        this.smoothPressure(c.PRESSURE_ITERATIONS - half, flowX, flowY);
 
         P.gradient.bind();
         gl.uniform2f(P.gradient.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
@@ -274,6 +285,75 @@ export class FluidSimulation {
             this.blit(this.dye.write);
             this.dye.swap();
         }
+    }
+
+    // Jacobi sweeps on the fine grid.
+    smoothPressure (iterations, flowX, flowY) {
+        const gl = this.gl;
+        const P = this.programs;
+        P.pressure.bind();
+        gl.uniform2f(P.pressure.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
+        gl.uniform1i(P.pressure.uniforms.uDivergence, this.divergence.attach(0));
+        gl.uniform1i(P.pressure.uniforms.uObstacles, this.obstacleTexture.attach(1));
+        gl.uniform2f(P.pressure.uniforms.uFlow, flowX, flowY);
+        for (let i = 0; i < iterations; i++) {
+            gl.uniform1i(P.pressure.uniforms.uPressure, this.pressure.read.attach(2));
+            this.blit(this.pressure.write);
+            this.pressure.swap();
+        }
+    }
+
+    // Solve the residual equation on a coarse grid and add the correction back.
+    // This is what carries the long wavelength part of the pressure - the part
+    // that decides whether a room with one opening fills up or keeps flowing.
+    coarseCorrection (flowX, flowY) {
+        const c = this.config;
+        if (c.COARSE_ITERATIONS <= 0) return;
+        const gl = this.gl;
+        const P = this.programs;
+        const obst = this.obstacleTexture;
+
+        P.residual.bind();
+        gl.uniform2f(P.residual.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
+        gl.uniform1i(P.residual.uniforms.uPressure, this.pressure.read.attach(0));
+        gl.uniform1i(P.residual.uniforms.uDivergence, this.divergence.attach(1));
+        gl.uniform1i(P.residual.uniforms.uObstacles, obst.attach(2));
+        gl.uniform2f(P.residual.uniforms.uFlow, flowX, flowY);
+        this.blit(this.residual);
+
+        const scaleX = this.velocity.width / this.coarseResidual.width;
+        const scaleY = this.velocity.height / this.coarseResidual.height;
+        P.restrict.bind();
+        gl.uniform2f(P.restrict.uniforms.texelSize, this.coarseResidual.texelSizeX, this.coarseResidual.texelSizeY);
+        gl.uniform1i(P.restrict.uniforms.uResidual, this.residual.attach(0));
+        gl.uniform2f(P.restrict.uniforms.uFineTexel, this.velocity.texelSizeX, this.velocity.texelSizeY);
+        gl.uniform1f(P.restrict.uniforms.uScale, scaleX * scaleY);
+        this.blit(this.coarseResidual);
+
+        // the correction starts from zero every frame
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.coarsePressure.read.fbo);
+        gl.viewport(0, 0, this.coarsePressure.read.width, this.coarsePressure.read.height);
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        P.pressure.bind();
+        gl.uniform2f(P.pressure.uniforms.texelSize, this.coarsePressure.texelSizeX, this.coarsePressure.texelSizeY);
+        gl.uniform1i(P.pressure.uniforms.uDivergence, this.coarseResidual.attach(0));
+        gl.uniform1i(P.pressure.uniforms.uObstacles, obst.attach(1));
+        gl.uniform2f(P.pressure.uniforms.uFlow, flowX, flowY);
+        for (let i = 0; i < c.COARSE_ITERATIONS; i++) {
+            gl.uniform1i(P.pressure.uniforms.uPressure, this.coarsePressure.read.attach(2));
+            this.blit(this.coarsePressure.write);
+            this.coarsePressure.swap();
+        }
+
+        P.prolong.bind();
+        gl.uniform2f(P.prolong.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
+        gl.uniform1i(P.prolong.uniforms.uPressure, this.pressure.read.attach(0));
+        gl.uniform1i(P.prolong.uniforms.uCoarse, this.coarsePressure.read.attach(1));
+        gl.uniform1i(P.prolong.uniforms.uObstacles, obst.attach(2));
+        this.blit(this.pressure.write);
+        this.pressure.swap();
     }
 
     // x, y in [0,1] with y pointing up; dx, dy are velocity impulses.
