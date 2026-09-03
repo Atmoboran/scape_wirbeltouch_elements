@@ -23,6 +23,7 @@ export class ObstacleField {
         this.maskCanvas.width = 2;
         this.maskCanvas.height = 2;
         this.maskCtx = this.maskCanvas.getContext('2d', { willReadFrequently: false });
+        this.edgeBlur = 0;      // in mask pixels, set from the simulation
         this.dirty = true;
     }
 
@@ -92,6 +93,20 @@ export class ObstacleField {
             } else {
                 ctx.fill(p.path);
             }
+        }
+
+        // A hard edge on a diagonal leaves a one-cell staircase, and every step
+        // sheds its own little vortex - the "trees" growing off a mountain
+        // slope. Adding a blurred copy on top (never replacing the sharp one,
+        // so a thin freehand stroke cannot be blurred away) gives the solver a
+        // boundary that ramps over about one cell instead of jumping.
+        if (this.edgeBlur > 0 && 'filter' in ctx) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.filter = 'blur(' + this.edgeBlur + 'px)';
+            ctx.drawImage(this.maskCanvas, 0, 0);
+            ctx.filter = 'none';
+            ctx.restore();
         }
         this.dirty = false;
     }
@@ -256,9 +271,9 @@ export const PRESETS = {
         makeShape('square', 0.68, 0.86, 0.08)
     ],
     mountains: () => [
-        makeShape('hill', 0.32, 0.86, 0.17),
-        makeShape('hill', 0.55, 0.90, 0.11),
-        makeShape('hill', 0.74, 0.87, 0.15)
+        makeShape('hill', 0.32, 0.88, 0.14),
+        makeShape('hill', 0.55, 0.92, 0.09),
+        makeShape('hill', 0.74, 0.89, 0.12)
     ],
     venturi: () => [
         makeShape('square', 0.45, -0.07, 0.33),

@@ -54,7 +54,7 @@ void main () {
     p.x *= aspectRatio;
     vec3 splat = exp(-dot(p, p) / radius) * color;
     vec3 base = texture2D(uTarget, vUv).xyz;
-    float solid = step(0.5, texture2D(uObstacles, vUv).x);
+    float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
     gl_FragColor = vec4((base + splat) * (1.0 - solid), 1.0);
 }
 `;
@@ -73,7 +73,7 @@ uniform float dt;
 uniform float dissipation;
 
 void main () {
-    float solid = step(0.5, texture2D(uObstacles, vUv).x);
+    float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
     vec2 coord = vUv - dt * texture2D(uVelocity, vUv).xy * texelSize;
     coord = clamp(coord, vec2(0.0), vec2(1.0));
     vec4 result = texture2D(uSource, coord);
@@ -178,7 +178,7 @@ void main () {
     velocity += force * dt;
     velocity = min(max(velocity, -3000.0), 3000.0);
 
-    float solid = step(0.5, texture2D(uObstacles, vUv).x);
+    float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
     gl_FragColor = vec4(velocity * (1.0 - solid), 0.0, 1.0);
 }
 `;
@@ -257,8 +257,24 @@ void main () {
     vec2 velocity = texture2D(uVelocity, vUv).xy;
     velocity -= 0.5 * vec2(R - L, T - B);
 
-    float solid = step(0.5, texture2D(uObstacles, vUv).x);
+    float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
     gl_FragColor = vec4(velocity * (1.0 - solid), 0.0, 1.0);
+}
+`;
+
+// Fills the whole field with one value (outside solids). Used to prime the
+// tunnel: without it the domain starts at rest and the smoke front travels as
+// a shear layer that curls up long before it reaches any obstacle.
+export const fillShader = `
+precision highp float;
+precision highp sampler2D;
+varying vec2 vUv;
+uniform sampler2D uObstacles;
+uniform vec2 uValue;
+
+void main () {
+    float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
+    gl_FragColor = vec4(uValue * (1.0 - solid), 0.0, 1.0);
 }
 `;
 
@@ -288,7 +304,7 @@ void main () {
     float w = clamp(max(inlet, sponge), 0.0, 1.0);
     float wobble = uWobble * uSpeed * sin(uTime * 1.7 + dot(vUv, perp) * 11.0);
     v = mix(v, uSpeed * uDir + wobble * perp, w);
-    float solid = step(0.5, texture2D(uObstacles, vUv).x);
+    float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
     gl_FragColor = vec4(v * (1.0 - solid), 0.0, 1.0);
 }
 `;
@@ -396,7 +412,7 @@ void main () {
         float p = smooth5(uPressure, vUv).x * uPressureScale;
         c = diverging(p);
     }
-    float solid = step(0.5, texture2D(uObstacles, vUv).x);
+    float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
     c = mix(c, vec3(0.0), solid);
     gl_FragColor = vec4(c, 1.0);
 }

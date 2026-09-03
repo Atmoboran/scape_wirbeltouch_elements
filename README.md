@@ -22,7 +22,7 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
 * **Rotate and resize** – with the arrows right below the tools, or with **two
   fingers** directly on an obstacle (rotate and pinch at once). Freehand
   strokes turn about their own centre of gravity.
-* **Medium** – *air* (wind around a building: fast, vigorously turbulent) or
+* **Medium** – *air* (wind around a building: brisk, with a turbulent wake) or
   *water* (a slow flume: a clean, regular vortex street). Both solve the same
   equations; what the presets change is the regime, i.e. roughly the Reynolds
   number, plus the look of the dye.
@@ -60,8 +60,19 @@ mode the two walls along the flow axis become transparent and the outlet edge
 is pinned to `p = 0` so air can actually leave; the other two stay solid tunnel
 walls, and turning the wind off closes the box on all sides again.
 
-The mask is painted from the shape list into a hidden 2D canvas at simulation
-resolution; the visible, crisp obstacles are drawn on a separate overlay canvas.
+The mask is painted from the shape list into a hidden 2D canvas at twice the
+simulation resolution; the visible, crisp obstacles are drawn on a separate
+overlay canvas. A blurred copy is added on top of the sharp mask (added, never
+substituted, so a thin freehand stroke cannot be blurred out of existence) and
+the solver reads the mask as a fraction rather than a yes/no. Without that, a
+diagonal edge is a one-cell staircase and every step sheds a little vortex of
+its own — visible as small "trees" growing off a mountain slope.
+
+Switching the wind on **primes** the whole field with the free stream instead of
+letting it creep in from the inlet. An under-converged Jacobi solve only carries
+pressure information a few dozen cells per frame, so a domain starting from rest
+accelerates gradually, and the smoke front then travels as a shear layer against
+the still air ahead of it and curls up long before it reaches any obstacle.
 
 ## Run locally
 

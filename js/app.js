@@ -16,22 +16,22 @@ const QUALITY = [
 // Reynolds number than a slow water flume, so it is choppier and less orderly.
 const MEDIA = {
     air: {
-        windSpeed: 78,
-        VELOCITY_DISSIPATION: 0.03,
-        CURL: 15,
+        windSpeed: 50,
+        VELOCITY_DISSIPATION: 0.09,
+        CURL: 6,
         DENSITY_DISSIPATION: 0,
-        smokeStripes: 26,
-        inflowWobble: 0.03,
+        smokeStripes: 24,
+        inflowWobble: 0.015,
         smokeColorA: [0.88, 0.92, 1.0],
         smokeColorB: [1.0, 0.70, 0.42]
     },
     water: {
-        windSpeed: 34,
-        VELOCITY_DISSIPATION: 0.14,
-        CURL: 5,
+        windSpeed: 30,
+        VELOCITY_DISSIPATION: 0.16,
+        CURL: 3,
         DENSITY_DISSIPATION: 0,
         smokeStripes: 14,
-        inflowWobble: 0.012,
+        inflowWobble: 0.010,
         smokeColorA: [0.30, 0.88, 0.95],
         smokeColorB: [0.28, 0.42, 0.98]
     }
@@ -440,6 +440,7 @@ function loadPreset (name) {
 function setWind (on) {
     if (!sim) return;
     sim.config.windTunnel = on;
+    if (on) sim.prime();
     el('btn-wind').classList.toggle('on', on);
     el('wind-label').textContent = on ? dict.windOff : dict.windOn;
     setPressed(dirButtons, n => n.dataset.dir === (on ? state.dirKey : 'off'));

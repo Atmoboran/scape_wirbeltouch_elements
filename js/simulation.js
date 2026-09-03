@@ -16,13 +16,13 @@ export const defaultConfig = {
     PRESSURE_ITERATIONS: 32,
     PRESSURE_DECAY: 0.85,
     DENSITY_DISSIPATION: 0,
-    VELOCITY_DISSIPATION: 0.15,
-    CURL: 8,
+    VELOCITY_DISSIPATION: 0.09,
+    CURL: 6,
     SPLAT_RADIUS: 0.22,
     SPLAT_FORCE: 5000,
     // wind tunnel
     windTunnel: false,
-    windSpeed: 55,          // simulation texels per second
+    windSpeed: 50,          // simulation texels per second
     windDir: [1, 0],        // unit vector, uv space (y up): [1,0] = left to right
     inflowWobble: 0.02,     // tiny inlet unsteadiness, seeds vortex shedding
     inflowBand: 0.05,
@@ -65,6 +65,7 @@ export class FluidSimulation {
             vorticity: new Program(gl, vs, S.vorticityShader),
             pressure: new Program(gl, vs, S.pressureShader),
             gradient: new Program(gl, vs, S.gradientSubtractShader),
+            fill: new Program(gl, vs, S.fillShader),
             inflow: new Program(gl, vs, S.inflowShader),
             inject: new Program(gl, vs, S.injectShader),
             display: new Program(gl, vs, S.displayShader)
@@ -112,6 +113,8 @@ export class FluidSimulation {
             Math.round(simRes.width * this.config.MASK_SCALE),
             Math.round(simRes.height * this.config.MASK_SCALE)
         );
+        // ramp the boundary over roughly one simulation cell
+        this.obstacles.edgeBlur = this.config.MASK_SCALE;
         this.syncObstacles(true);
     }
 
@@ -119,6 +122,25 @@ export class FluidSimulation {
         if (!force && !this.obstacles.dirty) return;
         this.obstacles.renderMask();
         this.obstacleTexture.update();
+    }
+
+    // Starts the tunnel with the free stream already blowing everywhere. The
+    // pressure solve only carries information a few dozen cells per frame, so
+    // without this the domain accelerates gradually from the inlet and the
+    // smoke front rolls up on the shear against the still air ahead of it.
+    prime () {
+        if (!this.config.windTunnel) return;
+        this.syncObstacles();   // a scene change must not prime through a stale mask
+        const gl = this.gl;
+        const P = this.programs;
+        const c = this.config;
+        gl.disable(gl.BLEND);
+        P.fill.bind();
+        gl.uniform2f(P.fill.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
+        gl.uniform1i(P.fill.uniforms.uObstacles, this.obstacleTexture.attach(0));
+        gl.uniform2f(P.fill.uniforms.uValue, c.windSpeed * c.windDir[0], c.windSpeed * c.windDir[1]);
+        this.blit(this.velocity.write);
+        this.velocity.swap();
     }
 
     reset () {
@@ -132,6 +154,7 @@ export class FluidSimulation {
             }
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        this.prime();
     }
 
     step (dt) {
