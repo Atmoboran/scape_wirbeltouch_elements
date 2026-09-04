@@ -16,7 +16,8 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
 
 * **Wind on** – a steady flow, visualised with coloured smoke streak lines
   injected at the inlet. The inflow can come **from any of the four sides** or
-  be switched off entirely.
+  be switched off entirely; switching it off spins the fan down over about a
+  second and a half rather than sealing the tunnel around moving air.
 * **Obstacles** – cylinder, block, flat plate, airfoil, hill and a freehand
   brush. Tap to place, drag to move. To remove one: drag it onto the bin, tap
   the bin while it is selected, or use the eraser.

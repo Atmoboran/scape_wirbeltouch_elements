@@ -544,3 +544,6 @@ input[type="range"]::-moz-range-thumb {
 
 /* play / pause icon swap */
 .action svg[hidden], .tool svg[hidden] { display: none; }
+#btn-pause .icon-play { display: none; }
+#btn-pause.paused .icon-pause { display: none; }
+#btn-pause.paused .icon-play { display: block; }

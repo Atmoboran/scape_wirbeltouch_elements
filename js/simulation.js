@@ -29,6 +29,9 @@ export const defaultConfig = {
     windTunnel: false,
     windSpeed: 50,          // simulation texels per second
     windDir: [1, 0],        // unit vector, uv space (y up): [1,0] = left to right
+    windGain: 1,            // fan speed: ramped to 0 when the wind is switched off
+    windDecay: 0,           // 1/s, a uniform slow-down of the whole field while
+                            // the fan runs out
     inflowWobble: 0.02,     // tiny inlet unsteadiness, seeds vortex shedding
     inflowBand: 0.05,
     inletStrength: 0.85,
@@ -151,7 +154,8 @@ export class FluidSimulation {
         P.fill.bind();
         gl.uniform2f(P.fill.uniforms.texelSize, this.velocity.texelSizeX, this.velocity.texelSizeY);
         gl.uniform1i(P.fill.uniforms.uObstacles, this.obstacleTexture.attach(0));
-        gl.uniform2f(P.fill.uniforms.uValue, c.windSpeed * c.windDir[0], c.windSpeed * c.windDir[1]);
+        const u0 = c.windSpeed * c.windGain;
+        gl.uniform2f(P.fill.uniforms.uValue, u0 * c.windDir[0], u0 * c.windDir[1]);
         this.blit(this.velocity.write);
         this.velocity.swap();
     }
@@ -177,23 +181,44 @@ export class FluidSimulation {
         const P = this.programs;
         const velocity = this.velocity;
         const obst = this.obstacleTexture;
-        // (0,0) closes every wall; otherwise the flow axis opens up
+        // (0,0) closes every wall; otherwise the flow axis opens up. Note this
+        // follows windTunnel, not windGain: the ends of a tunnel stay open when
+        // the fan is switched off. Sealing a box full of moving air makes it
+        // slosh back and forth, which is correct for a sealed box and not at
+        // all what "switch the wind off" should mean.
         const flowX = c.windTunnel ? c.windDir[0] : 0;
         const flowY = c.windTunnel ? c.windDir[1] : 0;
 
         gl.disable(gl.BLEND);
 
+        // Uniform slow-down while the fan runs out. Scaling the whole field by
+        // one number keeps it divergence free, so it launches no pressure wave -
+        // the air just comes to rest. Braking it at a boundary instead sets the
+        // whole box sloshing.
+        if (c.windDecay > 0) {
+            P.clear.bind();
+            gl.uniform2f(P.clear.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
+            gl.uniform1i(P.clear.uniforms.uTexture, velocity.read.attach(0));
+            gl.uniform1f(P.clear.uniforms.value, Math.exp(-c.windDecay * dt));
+            this.blit(velocity.write);
+            velocity.swap();
+        }
+
         // ---- wind tunnel forcing -------------------------------------------
-        if (c.windTunnel) {
+        if (c.windTunnel && c.windGain > 0) {
             P.inflow.bind();
             gl.uniform2f(P.inflow.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
             gl.uniform1i(P.inflow.uniforms.uVelocity, velocity.read.attach(0));
             gl.uniform1i(P.inflow.uniforms.uObstacles, obst.attach(1));
             gl.uniform2f(P.inflow.uniforms.uDir, c.windDir[0], c.windDir[1]);
-            gl.uniform1f(P.inflow.uniforms.uSpeed, c.windSpeed);
+            gl.uniform1f(P.inflow.uniforms.uSpeed, c.windSpeed * c.windGain);
             gl.uniform1f(P.inflow.uniforms.uBand, c.inflowBand);
-            gl.uniform1f(P.inflow.uniforms.uInletStrength, Math.min(1.0, c.inletStrength));
-            gl.uniform1f(P.inflow.uniforms.uSpongeStrength, c.spongeStrength);
+            // The strength fades with the fan, not just the target speed: at
+            // gain 0 the band would otherwise still be forcing, only now
+            // forcing the air to a standstill - a plug at the inlet while the
+            // outlet keeps draining, which sucks the flow backwards.
+            gl.uniform1f(P.inflow.uniforms.uInletStrength, Math.min(1.0, c.inletStrength) * c.windGain);
+            gl.uniform1f(P.inflow.uniforms.uSpongeStrength, c.spongeStrength * c.windGain);
             gl.uniform1f(P.inflow.uniforms.uWobble, c.inflowWobble);
             gl.uniform1f(P.inflow.uniforms.uTime, this.time);
             this.blit(velocity.write);
@@ -270,7 +295,7 @@ export class FluidSimulation {
         this.dye.swap();
 
         // ---- smoke source at the inlet ----------------------------------------
-        if (c.windTunnel && c.smokeRate > 0) {
+        if (c.windTunnel && c.windGain > 0 && c.smokeRate > 0) {
             P.inject.bind();
             gl.uniform2f(P.inject.uniforms.texelSize, this.dye.texelSizeX, this.dye.texelSizeY);
             gl.uniform1i(P.inject.uniforms.uTarget, this.dye.read.attach(0));
@@ -278,7 +303,7 @@ export class FluidSimulation {
             gl.uniform2f(P.inject.uniforms.uDir, c.windDir[0], c.windDir[1]);
             gl.uniform1f(P.inject.uniforms.uBand, c.inflowBand * 0.6);
             gl.uniform1f(P.inject.uniforms.uStripes, c.smokeStripes);
-            gl.uniform1f(P.inject.uniforms.uAmount, Math.min(1.0, c.smokeRate * dt * 8.0));
+            gl.uniform1f(P.inject.uniforms.uAmount, Math.min(1.0, c.smokeRate * dt * 8.0) * c.windGain);
             gl.uniform1f(P.inject.uniforms.uMode, c.smokeMode);
             gl.uniform3f(P.inject.uniforms.uColorA, c.smokeColorA[0], c.smokeColorA[1], c.smokeColorA[2]);
             gl.uniform3f(P.inject.uniforms.uColorB, c.smokeColorB[0], c.smokeColorB[1], c.smokeColorB[2]);

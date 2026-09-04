@@ -48,6 +48,10 @@ const MAX_PIXELS = 4.2e6;      // keeps 4K screens and weak GPUs civil
 const IDLE_RESET_MS = 4 * 60 * 1000;
 const DEFAULT_SCENE = 'cylinder';
 const ROTATE_STEP = 15;
+const SPIN_DOWN_S = 1.6;       // how long the fan takes to run out
+const SPIN_DOWN_RATE = 2.6;    // 1/s, uniform slow-down over that time
+const SETTLE_S = 0.7;          // keep slowing after the fan is off, so almost
+                               // no momentum is left when the ends close
 
 const simCanvas = document.getElementById('sim');
 const overlay = document.getElementById('overlay');
@@ -67,6 +71,8 @@ const state = {
     medium: 'air',
     dirKey: 'right',
     selected: null,
+    windOn: false,
+    settle: 0,
     overlayDirty: true,
     lastInteraction: performance.now()
 };
@@ -476,13 +482,13 @@ function setDirection (key) {
         setWind(false);
     } else {
         // dye left over from the old direction only muddies the picture
-        const changed = state.dirKey !== key && sim.config.windTunnel;
+        const changed = state.dirKey !== key && state.windOn;
         state.dirKey = key;
         sim.config.windDir = DIRECTIONS[key];
         if (changed) sim.reset();
         setWind(true);
     }
-    setPressed(dirButtons, n => n.dataset.dir === (sim.config.windTunnel ? state.dirKey : 'off'));
+    setPressed(dirButtons, n => n.dataset.dir === (state.windOn ? state.dirKey : 'off'));
     state.lastInteraction = performance.now();
 }
 
@@ -501,8 +507,18 @@ function loadPreset (name) {
 
 function setWind (on) {
     if (!sim) return;
-    sim.config.windTunnel = on;
-    if (on) sim.prime();
+    state.windOn = on;
+    if (on) {
+        sim.config.windTunnel = true;
+        sim.config.windGain = 1;
+        sim.config.windDecay = 0;
+        sim.prime();
+    } else {
+        sim.config.windDecay = SPIN_DOWN_RATE;
+    }
+    // switching off does not seal the tunnel: the inlet fades out over
+    // SPIN_DOWN_S in the frame loop while the ends stay open, so the air still
+    // in the box drains away instead of slamming against a closed wall
     el('btn-wind').classList.toggle('on', on);
     el('wind-label').textContent = on ? dict.windOff : dict.windOn;
     setPressed(dirButtons, n => n.dataset.dir === (on ? state.dirKey : 'off'));
@@ -513,13 +529,13 @@ function setPaused (paused) {
     if (!sim) return;
     sim.config.paused = paused;
     el('pause-label').textContent = paused ? dict.play : dict.pause;
-    const btn = el('btn-pause');
-    btn.querySelector('.icon-pause').hidden = paused;
-    btn.querySelector('.icon-play').hidden = !paused;
+    // hidden is an IDL attribute of HTMLElement, not of SVGElement - assigning
+    // it to an <svg> silently does nothing, so the swap goes through a class
+    el('btn-pause').classList.toggle('paused', paused);
     state.lastInteraction = performance.now();
 }
 
-el('btn-wind').addEventListener('click', () => setWind(!sim.config.windTunnel));
+el('btn-wind').addEventListener('click', () => setWind(!state.windOn));
 el('btn-pause').addEventListener('click', () => setPaused(!sim.config.paused));
 el('btn-reset').addEventListener('click', () => { sim.reset(); state.lastInteraction = performance.now(); });
 el('btn-undo').addEventListener('click', () => {
@@ -575,7 +591,7 @@ function setLanguage (lang) {
     dict = applyLanguage(lang);
     el('btn-lang').textContent = lang === 'de' ? 'EN' : 'DE';
     if (sim) {
-        el('wind-label').textContent = sim.config.windTunnel ? dict.windOff : dict.windOn;
+        el('wind-label').textContent = state.windOn ? dict.windOff : dict.windOn;
         el('pause-label').textContent = sim.config.paused ? dict.play : dict.pause;
     }
     updateSliderOutputs();
@@ -706,7 +722,7 @@ window.addEventListener('keydown', e => {
     if (e.target && /input|textarea/i.test(e.target.tagName)) return;
     switch (e.key.toLowerCase()) {
         case ' ': e.preventDefault(); setPaused(!sim.config.paused); break;
-        case 'w': setWind(!sim.config.windTunnel); break;
+        case 'w': setWind(!state.windOn); break;
         case 'c': field.clear(); state.selected = null; markObstaclesChanged(); break;
         case 'r': sim.reset(); break;
         case 'h': el('help').hidden = !el('help').hidden; break;
@@ -738,6 +754,24 @@ function frame (now) {
 
     if (sizeCanvases()) sim.initFramebuffers();
     sim.syncObstacles();
+
+    // Fan spin-down: the inlet fades while the whole field is slowed uniformly,
+    // and only once the air is nearly at rest are the tunnel ends closed - by
+    // then there is no momentum left to slosh.
+    if (!state.windOn && sim.config.windTunnel) {
+        if (sim.config.windGain > 0) {
+            sim.config.windGain = Math.max(0, sim.config.windGain - dt / SPIN_DOWN_S);
+            state.settle = 0;
+        } else {
+            // the inlet keeps feeding the field while it fades, so give the
+            // slow-down a moment on its own before sealing the ends
+            state.settle += dt;
+            if (state.settle >= SETTLE_S) {
+                sim.config.windDecay = 0;
+                sim.config.windTunnel = false;
+            }
+        }
+    }
 
     if (!sim.config.paused) sim.step(dt);
     sim.render();
