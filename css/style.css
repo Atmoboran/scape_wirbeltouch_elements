@@ -440,6 +440,8 @@ input[type="range"]::-moz-range-thumb {
 /* ------------------------------------------------------------ drag-to-delete */
 #trash {
   position: fixed;
+  font: inherit;
+  cursor: pointer;
   right: max(14px, env(safe-area-inset-right));
   bottom: calc(max(10px, env(safe-area-inset-bottom)) + 8px);
   z-index: 6;
@@ -460,7 +462,6 @@ input[type="range"]::-moz-range-thumb {
   font-size: 10.5px;
   line-height: 1.15;
   text-align: center;
-  pointer-events: none;
   opacity: 0;
   transform: scale(0.85);
   transition: opacity 140ms ease, transform 140ms ease, background 140ms ease, border-color 140ms ease;
@@ -508,3 +509,38 @@ input[type="range"]::-moz-range-thumb {
   #trash { width: 68px; height: 68px; font-size: 9.5px; }
   #trash svg { width: 22px; height: 22px; }
 }
+
+/* ------------------------------------------------- scene dropdown, legends */
+.dropdown {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 34px 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239fb0c8' stroke-width='2' stroke-linecap='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 18px;
+}
+.dropdown:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dropdown option, .dropdown optgroup { background: #0d1524; color: var(--ink); }
+
+/* colour swatches used by the view legend */
+.sw {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin: 0 1px -2px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.infobox b { color: var(--ink); font-weight: 620; }
+
+/* play / pause icon swap */
+.action svg[hidden], .tool svg[hidden] { display: none; }

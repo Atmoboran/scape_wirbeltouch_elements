@@ -18,8 +18,8 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   injected at the inlet. The inflow can come **from any of the four sides** or
   be switched off entirely.
 * **Obstacles** – cylinder, block, flat plate, airfoil, hill and a freehand
-  brush. Tap to place, drag to move, and either drag onto the bin that appears
-  while dragging or use the eraser to remove.
+  brush. Tap to place, drag to move. To remove one: drag it onto the bin, tap
+  the bin while it is selected, or use the eraser.
 * **Rotate and resize** – with the arrows right below the tools, or with **two
   fingers** directly on an obstacle (rotate and pinch at once). Freehand
   strokes turn about their own centre of gravity. Whichever obstacle was last
@@ -29,11 +29,16 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   *water* (a slow flume: a clean, regular vortex street). Both solve the same
   equations; what the presets change is the regime, i.e. roughly the Reynolds
   number, plus the look of the dye.
-* **Scenes** – ready-made setups: cylinder (Kármán vortex street), airfoil,
-  air brake, two cylinders, buildings, the Frankfurt skyline, mountain range,
-  nozzle, slit, and a pair showing cross-ventilation: a room with one window
-  barely exchanges any air, the same room with a window on the far side
-  flushes right through.
+* **Scenes** – a grouped dropdown of ready-made experiments: cylinder (Kármán
+  vortex street), two cylinders, airfoil, stall (the same wing at 6° and 26°),
+  air brake, bridge deck, buildings, the Frankfurt skyline, street canyon,
+  mountain range, wind farm (the downstream rotors sit in the wake of the
+  first), nozzle, slit. Two pairs are worth putting side by side:
+  * **solid wall vs slatted fence** – same height; the wall throws a strong
+    vortex and shelters only briefly, the fence bleeds air through and shelters
+    much further downwind.
+  * **one window vs cross-ventilation** – a room with a single opening barely
+    exchanges any air, the same room with a window opposite flushes through.
 * **Views** – smoke, speed, vorticity or pressure.
 * **Stir** – push the air around by hand. It sits next to the flow commands
   rather than among the obstacle tools, since it acts on the air, not on the

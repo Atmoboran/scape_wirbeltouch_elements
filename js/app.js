@@ -133,8 +133,13 @@ function markObstaclesChanged () {
 const trashEl = document.getElementById('trash');
 let trashHintShown = false;
 
-function showTrash (on) {
-    if (on) {
+// The bin is there whenever it has something to act on: while an obstacle is
+// being dragged, and while one is selected - then a tap on it is enough.
+function refreshTrash () {
+    let dragging = false;
+    pointers.forEach(e => { if (draggingShape(e.mode)) dragging = true; });
+    const want = dragging || (isShapeTool() && state.selected != null);
+    if (want) {
         if (!trashHintShown) { trashHintShown = true; showHint('hintDrag'); }
         trashEl.hidden = false;
         // let the browser lay it out before the transition starts
@@ -144,6 +149,17 @@ function showTrash (on) {
         trashEl.hidden = true;
     }
 }
+
+function deleteSelected () {
+    if (!state.selected) return;
+    field.remove(state.selected);
+    state.selected = null;
+    markObstaclesChanged();
+    refreshTrash();
+    state.lastInteraction = performance.now();
+}
+
+trashEl.addEventListener('click', deleteSelected);
 
 function overTrash (clientX, clientY) {
     if (trashEl.hidden) return false;
@@ -177,6 +193,7 @@ function onPointerDown (event) {
             anchor.shape = target;
             state.selected = target;
             state.overlayDirty = true;
+            refreshTrash();
             startGesture(target, anchor, p);
             pointers.set(event.pointerId, entry);
             syncShapeControls(target);
@@ -214,8 +231,8 @@ function onPointerDown (event) {
         }
         markObstaclesChanged();
     }
-    if (draggingShape(entry.mode)) showTrash(true);
     pointers.set(event.pointerId, entry);
+    refreshTrash();
 }
 
 function onPointerMove (event) {
@@ -264,7 +281,7 @@ function onPointerUp (event) {
         field.remove(entry.shape);
         markObstaclesChanged();
     }
-    if (entry && (draggingShape(entry.mode) || entry.mode === 'gesture')) showTrash(false);
+
     if (entry && entry.mode === 'gesture') {
         gesture = null;
         // the finger left on the screen must not start dragging the shape
@@ -274,6 +291,7 @@ function onPointerUp (event) {
     try {
         if (overlay.hasPointerCapture(event.pointerId)) overlay.releasePointerCapture(event.pointerId);
     } catch (e) { /* ignore */ }
+    refreshTrash();
     state.lastInteraction = performance.now();
 }
 
@@ -346,6 +364,7 @@ function eraseAt (p) {
         if (state.selected === hit) state.selected = null;
         field.remove(hit);
         markObstaclesChanged();
+        refreshTrash();
     }
 }
 
@@ -390,13 +409,16 @@ toolButtons.forEach(btn => {
         setPressed(toolButtons, n => n.dataset.tool === state.tool);
         state.overlayDirty = true;
         updateShapeBar();
+        refreshTrash();
         showHint(state.tool === 'stir' ? 'hintStir' : state.tool === 'eraser' ? 'hintErase' : 'hintPlace');
         state.lastInteraction = performance.now();
     });
 });
 
-const presetButtons = Array.from(document.querySelectorAll('[data-preset]'));
-presetButtons.forEach(btn => btn.addEventListener('click', () => loadPreset(btn.dataset.preset)));
+const sceneSelect = el('scene-select');
+sceneSelect.addEventListener('change', () => {
+    if (sceneSelect.value) loadPreset(sceneSelect.value);
+});
 
 const viewButtons = Array.from(document.querySelectorAll('[data-view]'));
 viewButtons.forEach(btn => btn.addEventListener('click', () => setView(parseInt(btn.dataset.view, 10))));
@@ -470,7 +492,8 @@ function loadPreset (name) {
     field.set(builder(overlay.width / Math.max(1, overlay.height)));
     state.selected = null;
     markObstaclesChanged();
-    setPressed(presetButtons, n => n.dataset.preset === name);
+    refreshTrash();
+    sceneSelect.value = name;
     sim.reset();
     setWind(true);
     state.lastInteraction = performance.now();
@@ -490,6 +513,9 @@ function setPaused (paused) {
     if (!sim) return;
     sim.config.paused = paused;
     el('pause-label').textContent = paused ? dict.play : dict.pause;
+    const btn = el('btn-pause');
+    btn.querySelector('.icon-pause').hidden = paused;
+    btn.querySelector('.icon-play').hidden = !paused;
     state.lastInteraction = performance.now();
 }
 
@@ -500,13 +526,15 @@ el('btn-undo').addEventListener('click', () => {
     field.undo();
     state.selected = null;
     markObstaclesChanged();
+    refreshTrash();
     state.lastInteraction = performance.now();
 });
 el('btn-clear').addEventListener('click', () => {
     field.clear();
     state.selected = null;
     markObstaclesChanged();
-    setPressed(presetButtons, () => false);
+    refreshTrash();
+    sceneSelect.value = '';
     state.lastInteraction = performance.now();
 });
 

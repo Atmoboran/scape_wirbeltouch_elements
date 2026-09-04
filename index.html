@@ -37,10 +37,10 @@
 
 <p id="hint" class="hint" data-i18n="hintPlace"></p>
 
-<div id="trash" hidden aria-hidden="true">
+<button id="trash" type="button" hidden data-i18n-title="dropToDelete">
   <svg viewBox="0 0 24 24"><path d="M5 7h14M9.5 7V4.8h5V7M6.7 7l.9 12.2h8.8L17.3 7"/></svg>
-  <span data-i18n="dropToDelete"></span>
-</div>
+  <span data-i18n="binLabel"></span>
+</button>
 
 <div id="dock">
   <button id="dock-toggle" class="dock-toggle" type="button" aria-expanded="true">
@@ -108,7 +108,8 @@
         <span id="wind-label" data-i18n="windOn"></span>
       </button>
       <button id="btn-pause" class="action" type="button">
-        <svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>
+        <svg class="icon-pause" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>
+        <svg class="icon-play" viewBox="0 0 24 24" hidden><path d="M7.5 4.8v14.4L19.5 12Z"/></svg>
         <span id="pause-label" data-i18n="pause"></span>
       </button>
       <button id="btn-reset" class="action" type="button">
@@ -137,26 +138,45 @@
 
   <section>
     <h3><span data-i18n="scenes">Szenen</span><button class="info" type="button" data-info="infoScenes" aria-label="info">i</button></h3>
-    <p class="infobox" id="infoScenes" data-i18n="infoScenes" hidden></p>
-    <div id="presets" class="pillrow">
-      <button class="pill" type="button" data-preset="cylinder" data-i18n="sceneCylinder"></button>
-      <button class="pill" type="button" data-preset="airfoil" data-i18n="sceneAirfoil"></button>
-      <button class="pill" type="button" data-preset="plate" data-i18n="scenePlate"></button>
-      <button class="pill" type="button" data-preset="tandem" data-i18n="sceneTandem"></button>
-      <button class="pill" type="button" data-preset="building" data-i18n="sceneBuilding"></button>
-      <button class="pill" type="button" data-preset="skyline" data-i18n="sceneSkyline"></button>
-      <button class="pill" type="button" data-preset="roomOne" data-i18n="sceneRoomOne"></button>
-      <button class="pill" type="button" data-preset="roomCross" data-i18n="sceneRoomCross"></button>
-      <button class="pill" type="button" data-preset="mountains" data-i18n="sceneMountains"></button>
-      <button class="pill" type="button" data-preset="venturi" data-i18n="sceneVenturi"></button>
-      <button class="pill" type="button" data-preset="slit" data-i18n="sceneSlit"></button>
-      <button class="pill" type="button" data-preset="empty" data-i18n="sceneEmpty"></button>
-    </div>
+    <p class="infobox" data-html id="infoScenes" data-i18n-html="infoScenes" hidden></p>
+    <select id="scene-select" class="dropdown">
+      <option value="" data-i18n="sceneCustom"></option>
+      <optgroup data-i18n-label="groupBasics">
+        <option value="cylinder" data-i18n="sceneCylinder"></option>
+        <option value="tandem" data-i18n="sceneTandem"></option>
+        <option value="airfoil" data-i18n="sceneAirfoil"></option>
+        <option value="stall" data-i18n="sceneStall"></option>
+        <option value="plate" data-i18n="scenePlate"></option>
+        <option value="bridge" data-i18n="sceneBridge"></option>
+      </optgroup>
+      <optgroup data-i18n-label="groupCity">
+        <option value="building" data-i18n="sceneBuilding"></option>
+        <option value="skyline" data-i18n="sceneSkyline"></option>
+        <option value="canyon" data-i18n="sceneCanyon"></option>
+      </optgroup>
+      <optgroup data-i18n-label="groupLand">
+        <option value="mountains" data-i18n="sceneMountains"></option>
+        <option value="wallSolid" data-i18n="sceneWallSolid"></option>
+        <option value="fence" data-i18n="sceneFence"></option>
+        <option value="windfarm" data-i18n="sceneWindfarm"></option>
+      </optgroup>
+      <optgroup data-i18n-label="groupChannel">
+        <option value="venturi" data-i18n="sceneVenturi"></option>
+        <option value="slit" data-i18n="sceneSlit"></option>
+      </optgroup>
+      <optgroup data-i18n-label="groupVent">
+        <option value="roomOne" data-i18n="sceneRoomOne"></option>
+        <option value="roomCross" data-i18n="sceneRoomCross"></option>
+      </optgroup>
+      <optgroup data-i18n-label="groupOther">
+        <option value="empty" data-i18n="sceneEmpty"></option>
+      </optgroup>
+    </select>
   </section>
 
   <section>
     <h3><span data-i18n="medium">Medium</span><button class="info" type="button" data-info="infoMedium" aria-label="info">i</button></h3>
-    <p class="infobox" id="infoMedium" data-i18n="infoMedium" hidden></p>
+    <p class="infobox" data-html id="infoMedium" data-i18n-html="infoMedium" hidden></p>
     <div id="media" class="pillrow">
       <button class="pill" type="button" data-medium="air" data-i18n="mediumAir"></button>
       <button class="pill" type="button" data-medium="water" data-i18n="mediumWater"></button>
@@ -165,7 +185,7 @@
 
   <section>
     <h3><span data-i18n="direction">Windrichtung</span><button class="info" type="button" data-info="infoDirection" aria-label="info">i</button></h3>
-    <p class="infobox" id="infoDirection" data-i18n="infoDirection" hidden></p>
+    <p class="infobox" data-html id="infoDirection" data-i18n-html="infoDirection" hidden></p>
     <div id="dirs" class="pillrow">
       <button class="pill" type="button" data-dir="right" data-i18n="dirRight"></button>
       <button class="pill" type="button" data-dir="left" data-i18n="dirLeft"></button>
@@ -177,7 +197,7 @@
 
   <section>
     <h3><span data-i18n="view">Ansicht</span><button class="info" type="button" data-info="infoView" aria-label="info">i</button></h3>
-    <p class="infobox" id="infoView" data-i18n="infoView" hidden></p>
+    <p class="infobox" data-html id="infoView" data-i18n-html="infoView" hidden></p>
     <div id="views" class="pillrow">
       <button class="pill" type="button" data-view="0" data-i18n="viewDye"></button>
       <button class="pill" type="button" data-view="1" data-i18n="viewSpeed"></button>
@@ -188,7 +208,7 @@
 
   <section>
     <h3><span data-i18n="smokeStyle">Rauchbild</span><button class="info" type="button" data-info="infoSmoke" aria-label="info">i</button></h3>
-    <p class="infobox" id="infoSmoke" data-i18n="infoSmoke" hidden></p>
+    <p class="infobox" data-html id="infoSmoke" data-i18n-html="infoSmoke" hidden></p>
     <div id="smokemodes" class="pillrow">
       <button class="pill" type="button" data-smoke="0" data-i18n="smokeLines"></button>
       <button class="pill" type="button" data-smoke="1" data-i18n="smokeSheet"></button>
@@ -202,7 +222,7 @@
         <output id="out-wind"></output>
       </label>
       <input id="in-wind" type="range" min="5" max="140" step="1" value="50">
-      <p class="infobox" id="infoWind" data-i18n="infoWind" hidden></p>
+      <p class="infobox" data-html id="infoWind" data-i18n-html="infoWind" hidden></p>
     </div>
     <div class="slider">
       <label>
@@ -210,7 +230,7 @@
         <output id="out-stripes"></output>
       </label>
       <input id="in-stripes" type="range" min="4" max="48" step="1" value="22">
-      <p class="infobox" id="infoStripes" data-i18n="infoStripes" hidden></p>
+      <p class="infobox" data-html id="infoStripes" data-i18n-html="infoStripes" hidden></p>
     </div>
     <div class="slider">
       <label>
@@ -218,7 +238,7 @@
         <output id="out-curl"></output>
       </label>
       <input id="in-curl" type="range" min="0" max="40" step="1" value="6">
-      <p class="infobox" id="infoVorticity" data-i18n="infoVorticity" hidden></p>
+      <p class="infobox" data-html id="infoVorticity" data-i18n-html="infoVorticity" hidden></p>
     </div>
     <div class="slider">
       <label>
@@ -226,7 +246,7 @@
         <output id="out-fade"></output>
       </label>
       <input id="in-fade" type="range" min="0" max="200" step="1" value="12">
-      <p class="infobox" id="infoFade" data-i18n="infoFade" hidden></p>
+      <p class="infobox" data-html id="infoFade" data-i18n-html="infoFade" hidden></p>
     </div>
     <div class="slider">
       <label>
@@ -234,7 +254,7 @@
         <output id="out-quality"></output>
       </label>
       <input id="in-quality" type="range" min="0" max="3" step="1" value="2">
-      <p class="infobox" id="infoQuality" data-i18n="infoQuality" hidden></p>
+      <p class="infobox" data-html id="infoQuality" data-i18n-html="infoQuality" hidden></p>
     </div>
   </section>
 </aside>

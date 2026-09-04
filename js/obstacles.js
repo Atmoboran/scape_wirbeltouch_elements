@@ -360,6 +360,38 @@ export const PRESETS = {
         tower(0.730, 0.032, 0.27),
         tower(0.800, 0.021, 0.17)
     ],
+    // A street canyon roughly as wide as the buildings are tall: the classic
+    // urban case, where a vortex gets trapped between the two rows and the air
+    // down at street level barely exchanges with the flow above.
+    canyon: () => [
+        tower(0.30, 0.030, 0.55),
+        tower(0.70, 0.030, 0.55)
+    ],
+    // A solid windbreak and a slatted one of the same height. The solid wall
+    // throws a strong vortex and the shelter behind it is short; the slatted
+    // fence bleeds air through and shelters much further downwind.
+    wallSolid: () => [makeShape('plate', 0.38, 0.775, 0.225, 90)],
+    fence: () => [
+        makeShape('plate', 0.38, 0.9625, 0.0375, 90),
+        makeShape('plate', 0.38, 0.8575, 0.0375, 90),
+        makeShape('plate', 0.38, 0.7525, 0.0375, 90),
+        makeShape('plate', 0.38, 0.6475, 0.0375, 90)
+    ],
+    // Three rotors in a row, seen edge on. The second and third sit in the
+    // wake of the first and see markedly slower air.
+    windfarm: () => [
+        makeShape('plate', 0.28, 0.55, 0.12, 90), tower(0.28, 0.008, 0.33),
+        makeShape('plate', 0.50, 0.55, 0.12, 90), tower(0.50, 0.008, 0.33),
+        makeShape('plate', 0.72, 0.55, 0.12, 90), tower(0.72, 0.008, 0.33)
+    ],
+    // A bridge deck: a bluff body that sheds alternately above and below,
+    // which is what made the Tacoma Narrows bridge famous.
+    bridge: () => [makeShape('plate', 0.45, 0.5, 0.22, 0)],
+    // The same wing twice, at a sensible angle and at far too steep a one.
+    stall: () => [
+        makeShape('airfoil', 0.38, 0.30, 0.125, 6),
+        makeShape('airfoil', 0.38, 0.70, 0.125, 26)
+    ],
     roomOne: aspect => roomWalls(aspect, true, false),
     roomCross: aspect => roomWalls(aspect, true, true),
     tandem: () => [
