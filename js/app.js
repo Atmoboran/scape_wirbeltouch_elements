@@ -176,6 +176,7 @@ function onPointerDown (event) {
             anchor.mode = 'gesture';
             anchor.shape = target;
             state.selected = target;
+            state.overlayDirty = true;
             startGesture(target, anchor, p);
             pointers.set(event.pointerId, entry);
             syncShapeControls(target);
@@ -387,6 +388,7 @@ toolButtons.forEach(btn => {
     btn.addEventListener('click', () => {
         state.tool = btn.dataset.tool;
         setPressed(toolButtons, n => n.dataset.tool === state.tool);
+        state.overlayDirty = true;
         updateShapeBar();
         showHint(state.tool === 'stir' ? 'hintStir' : state.tool === 'eraser' ? 'hintErase' : 'hintPlace');
         state.lastInteraction = performance.now();
@@ -713,7 +715,8 @@ function frame (now) {
     sim.render();
 
     if (state.overlayDirty) {
-        field.renderOverlay(octx, overlay.width, overlay.height, null);
+        field.renderOverlay(octx, overlay.width, overlay.height, null,
+            isShapeTool() ? state.selected : null);
         state.overlayDirty = false;
     }
 

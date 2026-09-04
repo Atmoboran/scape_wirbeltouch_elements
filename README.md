@@ -22,7 +22,9 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   while dragging or use the eraser to remove.
 * **Rotate and resize** – with the arrows right below the tools, or with **two
   fingers** directly on an obstacle (rotate and pinch at once). Freehand
-  strokes turn about their own centre of gravity.
+  strokes turn about their own centre of gravity. Whichever obstacle was last
+  tapped or placed carries a blue halo: that is the one the size and rotation
+  controls act on.
 * **Medium** – *air* (wind around a building: brisk, with a turbulent wake) or
   *water* (a slow flume: a clean, regular vortex street). Both solve the same
   equations; what the presets change is the regime, i.e. roughly the Reynolds

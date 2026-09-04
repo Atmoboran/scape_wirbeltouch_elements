@@ -111,12 +111,14 @@ export class ObstacleField {
         this.dirty = false;
     }
 
-    // Pretty rendering on top of the simulation.
-    renderOverlay (ctx, w, h, ghost) {
+    // Pretty rendering on top of the simulation. The selected shape - the one
+    // the size and rotate controls act on - gets a halo so it is obvious which
+    // obstacle a tap picked up.
+    renderOverlay (ctx, w, h, ghost, selected) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, w, h);
-        for (const s of this.shapes) paintShape(ctx, s, w, h, 1.0);
-        if (ghost) paintShape(ctx, ghost, w, h, 0.45);
+        for (const s of this.shapes) paintShape(ctx, s, w, h, 1.0, s === selected);
+        if (ghost) paintShape(ctx, ghost, w, h, 0.45, false);
     }
 
     hitTest (ctx, x, y, w, h) {
@@ -135,8 +137,9 @@ export class ObstacleField {
     }
 }
 
-function paintShape (ctx, s, w, h, alpha) {
+function paintShape (ctx, s, w, h, alpha, selected) {
     const p = shapePath(s, w, h);
+    if (selected) paintSelection(ctx, p, h, alpha);
     const cy = (s.type === 'brush' && s.points && s.points.length ? centroid(s.points).y : s.y) * h;
     const R = Math.max(2, s.r * h);
     // shade over the shape's own height, otherwise a tall tower gets a hard
@@ -164,6 +167,23 @@ function paintShape (ctx, s, w, h, alpha) {
         ctx.lineWidth = Math.max(1, R * 0.05);
         ctx.stroke(p.path);
     }
+    ctx.restore();
+}
+
+// A glowing rim just outside the silhouette, drawn underneath the shape itself
+// so only the outer half stays visible.
+function paintSelection (ctx, p, h, alpha) {
+    const halo = Math.max(3, h * 0.007);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = 'rgba(79, 195, 247, 0.95)';   // the accent of the interface
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(79, 195, 247, 0.85)';
+    ctx.shadowBlur = halo * 3;
+    ctx.lineWidth = (p.isStroke ? p.lineWidth : 0) + halo * 2;
+    ctx.stroke(p.path);
+    ctx.stroke(p.path);                              // twice, for a denser glow
     ctx.restore();
 }
 

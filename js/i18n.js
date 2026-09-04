@@ -145,7 +145,8 @@ export const STRINGS = {
               <li><strong>Wind an</strong> startet die Strömung von links nach rechts.
               Die farbigen Rauchfäden zeigen, welchen Weg die Luft nimmt.</li>
               <li>Wähle ein <strong>Hindernis</strong> und tippe in die Strömung.
-              Ziehen verschiebt es, der Radierer entfernt es.</li>
+              Ziehen verschiebt es, der Radierer entfernt es. Das blau umrandete
+              Hindernis ist das ausgewählte – Größe und Drehung wirken auf dieses.</li>
               <li><strong>Drehen</strong> kannst du ein Hindernis mit den Pfeilen unter
               den Werkzeugen oder mit zwei Fingern direkt im Bild – zwei Finger ändern
               zugleich die Größe. Schau bei der Tragfläche, wann die Strömung abreißt.</li>
@@ -302,7 +303,8 @@ export const STRINGS = {
               <li><strong>Wind on</strong> starts a steady flow from left to right.
               The coloured streak lines show the path the air takes.</li>
               <li>Pick an <strong>obstacle</strong> and tap into the flow. Drag to
-              move it, use the eraser to take it out again.</li>
+              move it, use the eraser to take it out again. The one outlined in blue
+              is the selected one - size and rotation act on that.</li>
               <li><strong>Rotate</strong> an obstacle with the arrows below the tools,
               or with two fingers directly on it – two fingers resize it at the same
               time. On the airfoil, watch for the moment the flow separates.</li>
