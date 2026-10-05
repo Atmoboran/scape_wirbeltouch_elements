@@ -1,8 +1,14 @@
 // Wiring: canvas sizing, touch/mouse input, obstacle placement, UI controls.
+// The look and the copy come from the theme (js/theme.js, themes/<name>/).
 
 import { FluidSimulation } from './simulation.js';
 import { ObstacleField, makeShape, PRESETS, centroid } from './obstacles.js';
-import { applyLanguage, STRINGS } from './i18n.js';
+import { applyLanguage } from './i18n.js';
+import { loadTheme, paintSwatches } from './theme.js';
+
+const theme = await loadTheme();
+const STRINGS = theme.strings;
+const LANGS = Object.keys(STRINGS);
 
 const QUALITY = [
     { sim: 128, dye: 512, iter: 24 },
@@ -14,6 +20,7 @@ const QUALITY = [
 // Two settings for the two media people know. Both solve the same equations -
 // what changes is the regime: wind around a building sits at a far higher
 // Reynolds number than a slow water flume, so it is choppier and less orderly.
+// The smoke colours of each medium come from the theme.
 const MEDIA = {
     air: {
         windSpeed: 50,
@@ -21,9 +28,7 @@ const MEDIA = {
         CURL: 6,
         DENSITY_DISSIPATION: 0.12,
         smokeStripes: 24,
-        inflowWobble: 0.015,
-        smokeColorA: [0.88, 0.92, 1.0],
-        smokeColorB: [1.0, 0.70, 0.42]
+        inflowWobble: 0.015
     },
     water: {
         windSpeed: 30,
@@ -31,9 +36,7 @@ const MEDIA = {
         CURL: 3,
         DENSITY_DISSIPATION: 0.10,
         smokeStripes: 14,
-        inflowWobble: 0.010,
-        smokeColorA: [0.30, 0.88, 0.95],
-        smokeColorB: [0.28, 0.42, 0.98]
+        inflowWobble: 0.010
     }
 };
 
@@ -58,11 +61,13 @@ const overlay = document.getElementById('overlay');
 const octx = overlay.getContext('2d');
 const hintEl = document.getElementById('hint');
 
-const field = new ObstacleField();
+const field = new ObstacleField({ obstacle: theme.obstacle, selection: theme.selection });
 let sim = null;
 
+const browserLang = (navigator.language || '').toLowerCase().slice(0, 2);
+
 const state = {
-    lang: (navigator.language || 'de').toLowerCase().startsWith('de') ? 'de' : 'en',
+    lang: STRINGS[browserLang] ? browserLang : LANGS[0],
     tool: 'circle',
     size: 11,          // obstacle radius, per cent of the domain height
     pen: 2.5,          // freehand pen half width, per cent of the domain height
@@ -80,7 +85,12 @@ const state = {
 let dict = STRINGS[state.lang];
 
 try {
-    sim = new FluidSimulation(simCanvas, field);
+    sim = new FluidSimulation(simCanvas, field, {
+        backgroundColor: theme.gl.background,
+        solidColor: theme.gl.solid,
+        speedColormap: theme.gl.speed,
+        divergingColormap: theme.gl.diverging
+    });
 } catch (err) {
     console.error(err);
     document.getElementById('fatal').hidden = false;
@@ -374,9 +384,14 @@ function eraseAt (p) {
     }
 }
 
+// Dye for one stir stroke: a colour from the theme's stir palette, or a random
+// hue if it has none. Premultiplied, a quarter coverage per splat.
 function randomColor () {
-    const c = HSVtoRGB(Math.random(), 0.85, 1.0);
-    return [c[0] * 0.25, c[1] * 0.25, c[2] * 0.25];
+    const palette = theme.gl.stir;
+    const c = palette
+        ? palette[Math.floor(Math.random() * palette.length)]
+        : HSVtoRGB(Math.random(), 0.85, 1.0);
+    return [c[0] * 0.25, c[1] * 0.25, c[2] * 0.25, 0.25];
 }
 
 function HSVtoRGB (h, s, v) {
@@ -467,6 +482,11 @@ function setMedium (key) {
     if (!preset || !sim) return;
     state.medium = key;
     Object.assign(sim.config, preset);
+    const smoke = theme.gl.smoke[key];
+    if (smoke) {
+        sim.config.smokeColorA = smoke[0];
+        sim.config.smokeColorB = smoke[smoke.length - 1];
+    }
     setPressed(mediumButtons, n => n.dataset.medium === key);
     el('in-wind').value = String(preset.windSpeed);
     el('in-curl').value = String(preset.CURL);
@@ -584,12 +604,15 @@ el('btn-fullscreen').addEventListener('click', () => {
     else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
 });
 
-el('btn-lang').addEventListener('click', () => setLanguage(state.lang === 'de' ? 'en' : 'de'));
+el('btn-lang').addEventListener('click', () => {
+    setLanguage(LANGS[(LANGS.indexOf(state.lang) + 1) % LANGS.length]);
+});
 
 function setLanguage (lang) {
     state.lang = lang;
-    dict = applyLanguage(lang);
-    el('btn-lang').textContent = lang === 'de' ? 'EN' : 'DE';
+    dict = applyLanguage(STRINGS, lang);
+    paintSwatches(theme);
+    el('btn-lang').hidden = LANGS.length < 2;
     if (sim) {
         el('wind-label').textContent = state.windOn ? dict.windOff : dict.windOn;
         el('pause-label').textContent = sim.config.paused ? dict.play : dict.pause;
@@ -704,6 +727,17 @@ function updateSliderOutputs () {
     el('out-quality').textContent = names[parseInt(el('in-quality').value, 10)] || '';
 }
 
+// Publishes the dock's height as --dock-height, so a theme can keep the hint
+// and the bin clear of the dock whatever its layout.
+function trackDockHeight () {
+    const dock = el('dock');
+    const publish = () => {
+        document.documentElement.style.setProperty('--dock-height', dock.offsetHeight + 'px');
+    };
+    publish();
+    if (window.ResizeObserver) new ResizeObserver(publish).observe(dock);
+}
+
 /* -------------------------------------------------------------------- hints */
 
 let hintTimer = null;
@@ -802,7 +836,7 @@ function resetToDefaultScene () {
 function boot () {
     let stored = null;
     try { stored = localStorage.getItem('wirbeltouch.lang'); } catch (e) { /* ignore */ }
-    setLanguage(stored || state.lang);
+    setLanguage(STRINGS[stored] ? stored : state.lang);
 
     setPressed(toolButtons, n => n.dataset.tool === state.tool);
     setPressed(smokeButtons, n => n.dataset.smoke === '0');
@@ -810,6 +844,7 @@ function boot () {
     setHelpTab('tab-basic');
     setDockCollapsed(window.innerWidth < 720);
     updateShapeBar();
+    trackDockHeight();
 
     sizeCanvases();
     if (!sim) return;

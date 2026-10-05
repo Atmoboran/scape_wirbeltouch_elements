@@ -1,0 +1,35 @@
+/* Functional rules the app relies on whatever the theme. No colours, fonts or
+   decoration here - all of that lives in themes/<name>/theme.css. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* nothing is shown until the theme's stylesheet has arrived, and nothing
+   animates from the browser defaults to the theme's look when it does */
+html:not(.themed) body { visibility: hidden; }
+html:not(.themed) * { transition: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body { touch-action: none; user-select: none; -webkit-user-select: none; }
+
+/* the app toggles visibility exclusively through the hidden attribute */
+[hidden] { display: none !important; }
+
+#stage { position: fixed; inset: 0; }
+#stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#overlay { touch-action: none; cursor: crosshair; }
+
+#panel, .sheet { touch-action: pan-y; }
+input[type="range"] { touch-action: pan-y; }
+
+/* play / pause icon swap, driven by the .paused class */
+#btn-pause .icon-play { display: none; }
+#btn-pause.paused .icon-pause { display: none; }
+#btn-pause.paused .icon-play { display: block; }
+
+/* a theme without a closing line leaves it empty */
+.claim:empty { display: none; }

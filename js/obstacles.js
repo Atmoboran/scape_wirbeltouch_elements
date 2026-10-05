@@ -6,7 +6,7 @@
 //
 // The same shape list is painted twice:
 //   * into a small hidden canvas at simulation resolution -> boundary mask
-//   * onto the visible overlay canvas -> crisp, nicely shaded obstacles
+//   * onto the visible overlay canvas -> crisp obstacles, styled by the theme
 
 let nextId = 1;
 
@@ -16,8 +16,30 @@ export function makeShape (type, x, y, r, angle) {
     return { id: nextId++, type, x, y, r, angle: angle || 0, points: null };
 }
 
+// How obstacles look on the overlay. The theme replaces this (see
+// themes/README.md); these are only plain stand-ins.
+const DEFAULT_STYLE = {
+    obstacle: {
+        fill: '#808080',    // a colour, or [top, bottom] for vertical shading
+        edge: null,         // outline colour, or null
+        shadow: null        // drop shadow colour, or null
+    },
+    selection: {
+        color: '#ffffff',   // ring around the selected obstacle
+        glow: null,         // glow colour, or null for a crisp ring
+        width: 0.005,       // ring width, fraction of the screen height
+        minWidth: 2,        // ... but at least this many pixels
+        gap: 0,             // space between shape and ring, fraction of height
+        gapColor: null      // what fills that space
+    }
+};
+
 export class ObstacleField {
-    constructor () {
+    constructor (style = {}) {
+        this.style = {
+            obstacle: Object.assign({}, DEFAULT_STYLE.obstacle, style.obstacle),
+            selection: Object.assign({}, DEFAULT_STYLE.selection, style.selection)
+        };
         this.shapes = [];
         this.maskCanvas = document.createElement('canvas');
         this.maskCanvas.width = 2;
@@ -117,8 +139,8 @@ export class ObstacleField {
     renderOverlay (ctx, w, h, ghost, selected) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, w, h);
-        for (const s of this.shapes) paintShape(ctx, s, w, h, 1.0, s === selected);
-        if (ghost) paintShape(ctx, ghost, w, h, 0.45, false);
+        for (const s of this.shapes) paintShape(ctx, s, w, h, 1.0, s === selected, this.style);
+        if (ghost) paintShape(ctx, ghost, w, h, 0.45, false, this.style);
     }
 
     hitTest (ctx, x, y, w, h) {
@@ -137,53 +159,77 @@ export class ObstacleField {
     }
 }
 
-function paintShape (ctx, s, w, h, alpha, selected) {
+function paintShape (ctx, s, w, h, alpha, selected, style) {
     const p = shapePath(s, w, h);
-    if (selected) paintSelection(ctx, p, h, alpha);
-    const cy = (s.type === 'brush' && s.points && s.points.length ? centroid(s.points).y : s.y) * h;
+    const look = style.obstacle;
+    if (selected) paintSelection(ctx, p, h, alpha, style.selection);
     const R = Math.max(2, s.r * h);
-    // shade over the shape's own height, otherwise a tall tower gets a hard
-    // band across its middle
-    const span = s.type === 'box' ? R * (s.hr || 1) : R;
-    const grad = ctx.createLinearGradient(0, cy - span, 0, cy + span);
-    grad.addColorStop(0, 'rgba(236, 240, 247, 1)');
-    grad.addColorStop(1, 'rgba(150, 162, 180, 1)');
+    let paint = look.fill;
+    if (Array.isArray(paint)) {
+        if (paint.length > 1) {
+            const cy = (s.type === 'brush' && s.points && s.points.length ? centroid(s.points).y : s.y) * h;
+            // shade over the shape's own height, otherwise a tall tower gets a
+            // hard band across its middle
+            const span = s.type === 'box' ? R * (s.hr || 1) : R;
+            const grad = ctx.createLinearGradient(0, cy - span, 0, cy + span);
+            grad.addColorStop(0, paint[0]);
+            grad.addColorStop(1, paint[paint.length - 1]);
+            paint = grad;
+        } else {
+            paint = paint[0];
+        }
+    }
 
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-    ctx.shadowBlur = Math.max(4, R * 0.25);
+    if (look.shadow) {
+        ctx.shadowColor = look.shadow;
+        ctx.shadowBlur = Math.max(4, R * 0.25);
+    }
     if (p.isStroke) {
-        ctx.strokeStyle = grad;
+        ctx.strokeStyle = paint;
         ctx.lineWidth = p.lineWidth;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.stroke(p.path);
     } else {
-        ctx.fillStyle = grad;
+        ctx.fillStyle = paint;
         ctx.fill(p.path);
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = 'rgba(20, 26, 38, 0.85)';
-        ctx.lineWidth = Math.max(1, R * 0.05);
-        ctx.stroke(p.path);
+        if (look.edge) {
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = look.edge;
+            ctx.lineWidth = Math.max(1, R * 0.05);
+            ctx.stroke(p.path);
+        }
     }
     ctx.restore();
 }
 
-// A glowing rim just outside the silhouette, drawn underneath the shape itself
-// so only the outer half stays visible.
-function paintSelection (ctx, p, h, alpha) {
-    const halo = Math.max(3, h * 0.007);
+// A rim just outside the silhouette, drawn underneath the shape itself so only
+// the outer half stays visible: either glowing, or a crisp ring held off the
+// shape by a gap.
+function paintSelection (ctx, p, h, alpha, sel) {
+    const ring = Math.max(sel.minWidth || 0, h * sel.width);
+    const gap = h * (sel.gap || 0);
+    const core = p.isStroke ? p.lineWidth : 0;
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.strokeStyle = 'rgba(79, 195, 247, 0.95)';   // the accent of the interface
+    ctx.strokeStyle = sel.color;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(79, 195, 247, 0.85)';
-    ctx.shadowBlur = halo * 3;
-    ctx.lineWidth = (p.isStroke ? p.lineWidth : 0) + halo * 2;
+    ctx.lineWidth = core + (gap + ring) * 2;
+    if (sel.glow) {
+        ctx.shadowColor = sel.glow;
+        ctx.shadowBlur = ring * 3;
+        ctx.stroke(p.path);                          // twice, for a denser glow
+    }
     ctx.stroke(p.path);
-    ctx.stroke(p.path);                              // twice, for a denser glow
+    if (gap > 0 && sel.gapColor) {
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = sel.gapColor;
+        ctx.lineWidth = core + gap * 2;
+        ctx.stroke(p.path);
+    }
     ctx.restore();
 }
 

@@ -4,7 +4,7 @@ pages:
   image: alpine:latest
   script:
     - mkdir -p public
-    - cp -r index.html css js README.md LICENSE public/
+    - cp -r index.html css js themes README.md LICENSE public/
   artifacts:
     paths:
       - public

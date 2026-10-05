@@ -39,13 +39,19 @@ export const defaultConfig = {
     smokeMode: 0,           // 0 = streak lines, 1 = full smoke
     smokeStripes: 22,
     smokeRate: 1.6,
-    smokeColorA: [0.25, 0.75, 1.0],
-    smokeColorB: [1.0, 0.55, 0.25],
+    // Colours are rgb triples in 0..1. These are plain stand-ins - the app
+    // fills them in from the active theme.
+    smokeColorA: [1, 1, 1],
+    smokeColorB: [1, 1, 1],
     // rendering
     displayMode: 0,         // 0 dye, 1 speed, 2 vorticity, 3 pressure
     speedScale: 0.012,
     curlScale: 0.09,
     pressureScale: 0.6,
+    backgroundColor: [0, 0, 0],
+    solidColor: [0, 0, 0],
+    speedColormap: [[0, 0, 0], [0.25, 0.25, 0.25], [0.5, 0.5, 0.5], [0.75, 0.75, 0.75], [1, 1, 1]],
+    divergingColormap: [[0, 0, 1], [0, 0, 0], [1, 0, 0]],
     paused: false
 };
 
@@ -115,6 +121,7 @@ export class FluidSimulation {
         gl.disable(gl.BLEND);
 
         this.dye = createDoubleFBO(gl, dyeRes.width, dyeRes.height, rgba.internalFormat, rgba.format, texType, filtering);
+        this.clearTarget(this.dye);     // new buffers come up opaque: no smoke means alpha 0
         this.velocity = createDoubleFBO(gl, simRes.width, simRes.height, rg.internalFormat, rg.format, texType, filtering);
         this.divergence = createFBO(gl, simRes.width, simRes.height, r.internalFormat, r.format, texType, gl.NEAREST);
         this.curl = createFBO(gl, simRes.width, simRes.height, r.internalFormat, r.format, texType, gl.NEAREST);
@@ -161,17 +168,19 @@ export class FluidSimulation {
     }
 
     reset () {
+        for (const target of [this.dye, this.velocity, this.pressure]) this.clearTarget(target);
+        this.prime();
+    }
+
+    clearTarget (target) {
         const gl = this.gl;
-        for (const target of [this.dye, this.velocity, this.pressure]) {
-            for (const fbo of [target.read, target.write]) {
-                gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.fbo);
-                gl.viewport(0, 0, fbo.width, fbo.height);
-                gl.clearColor(0, 0, 0, 1);
-                gl.clear(gl.COLOR_BUFFER_BIT);
-            }
+        for (const fbo of [target.read, target.write]) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbo.fbo);
+            gl.viewport(0, 0, fbo.width, fbo.height);
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
         }
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        this.prime();
     }
 
     step (dt) {
@@ -381,7 +390,8 @@ export class FluidSimulation {
         this.pressure.swap();
     }
 
-    // x, y in [0,1] with y pointing up; dx, dy are velocity impulses.
+    // x, y in [0,1] with y pointing up; dx, dy are velocity impulses; color is
+    // premultiplied dye [r, g, b, coverage].
     splat (x, y, dx, dy, color) {
         const gl = this.gl;
         const P = this.programs;
@@ -393,7 +403,7 @@ export class FluidSimulation {
         gl.uniform1i(P.splat.uniforms.uObstacles, obst.attach(1));
         gl.uniform1f(P.splat.uniforms.aspectRatio, this.canvas.width / this.canvas.height);
         gl.uniform2f(P.splat.uniforms.point, x, y);
-        gl.uniform3f(P.splat.uniforms.color, dx, dy, 0.0);
+        gl.uniform4f(P.splat.uniforms.color, dx, dy, 0.0, 0.0);
         gl.uniform1f(P.splat.uniforms.radius, this.correctRadius(this.config.SPLAT_RADIUS / 100.0));
         this.blit(this.velocity.write);
         this.velocity.swap();
@@ -401,7 +411,7 @@ export class FluidSimulation {
         if (color) {
             gl.uniform2f(P.splat.uniforms.texelSize, this.dye.texelSizeX, this.dye.texelSizeY);
             gl.uniform1i(P.splat.uniforms.uTarget, this.dye.read.attach(0));
-            gl.uniform3f(P.splat.uniforms.color, color[0], color[1], color[2]);
+            gl.uniform4f(P.splat.uniforms.color, color[0], color[1], color[2], color[3]);
             this.blit(this.dye.write);
             this.dye.swap();
         }
@@ -430,6 +440,14 @@ export class FluidSimulation {
         gl.uniform1f(P.display.uniforms.uSpeedScale, c.speedScale);
         gl.uniform1f(P.display.uniforms.uCurlScale, c.curlScale);
         gl.uniform1f(P.display.uniforms.uPressureScale, c.pressureScale);
+        const u = P.display.uniforms;
+        const rgb = (loc, v) => gl.uniform3f(loc, v[0], v[1], v[2]);
+        rgb(u.uBackground, c.backgroundColor);
+        rgb(u.uSolid, c.solidColor);
+        [u.uSpeed0, u.uSpeed1, u.uSpeed2, u.uSpeed3, u.uSpeed4].forEach((loc, i) => rgb(loc, c.speedColormap[i]));
+        rgb(u.uDivLo, c.divergingColormap[0]);
+        rgb(u.uDivMid, c.divergingColormap[1]);
+        rgb(u.uDivHi, c.divergingColormap[2]);
         this.blit(null);
     }
 }

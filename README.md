@@ -24,7 +24,7 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
 * **Rotate and resize** – with the arrows right below the tools, or with **two
   fingers** directly on an obstacle (rotate and pinch at once). Freehand
   strokes turn about their own centre of gravity. Whichever obstacle was last
-  tapped or placed carries a blue halo: that is the one the size and rotation
+  tapped or placed is highlighted: that is the one the size and rotation
   controls act on.
 * **Medium** – *air* (wind around a building: brisk, with a turbulent wake) or
   *water* (a slow flume: a clean, regular vortex street). Both solve the same
@@ -57,6 +57,25 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   than in the settings panel.
 * After 4 minutes without interaction the exhibit resets itself to the default
   scene (`IDLE_RESET_MS` in `js/app.js`).
+
+## Design and texts
+
+The look and the copy are kept apart from the app, so the exhibit can be
+shipped in another corporate design by swapping a folder under `themes/`:
+
+* **`scape`** (default) – the SCAPE° corporate design: Founders Grotesk, flat
+  colour fields, the SCAPE° wordmark, a cream tunnel with red-orange smoke
+  and green obstacles.
+* **`classic`** – the original dark look.
+
+Pick one with `?theme=classic` in the URL, or change the default in
+`<meta name="wirbeltouch-theme">` in `index.html`. A theme supplies the
+stylesheet, every text in German and English, icons, logo, favicon, and the
+colours of the simulation picture (smoke, colour maps, obstacles). What a
+theme has to provide is described in [themes/README.md](themes/README.md).
+
+Founders Grotesk is a commercial typeface and is not included; see
+[themes/scape/fonts/README.md](themes/scape/fonts/README.md).
 
 ## Physics
 
@@ -126,14 +145,18 @@ The site is fully static; any web space will do.
 ## Layout
 
 ```
-index.html          markup, toolbar, settings panel
-css/style.css       exhibit styling, touch-sized controls
-js/shaders.js       all GLSL programs
-js/gl.js            WebGL context, programs, framebuffers
-js/simulation.js    the fluid solver
-js/obstacles.js     obstacle shapes, mask + overlay rendering, scenes
-js/i18n.js          German / English strings
-js/app.js           input handling, UI wiring, main loop
+index.html             structure only: ids, text keys, icon slots
+css/base.css           functional CSS (hidden, canvas stacking, touch)
+js/shaders.js          all GLSL programs
+js/gl.js               WebGL context, programs, framebuffers
+js/simulation.js       the fluid solver
+js/obstacles.js        obstacle shapes, mask + overlay rendering, scenes
+js/i18n.js             puts the theme's strings into the page
+js/theme.js            loads the theme: stylesheet, icons, logo, colours
+js/app.js              input handling, UI wiring, main loop
+themes/shared/         default German / English texts, line icons
+themes/scape/          SCAPE° corporate design (default)
+themes/classic/        the original dark design
 ```
 
 ## Requirements

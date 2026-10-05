@@ -4,6 +4,8 @@
 //   * velocity is stored in "simulation texels per second"
 //   * the obstacle mask stores 1.0 = solid (obstacle), 0.0 = free fluid
 //   * uv (0,0) is the bottom left corner of the domain
+//   * the dye is premultiplied: rgb = colour * coverage, alpha = coverage, so
+//     it can be laid over a background of any colour
 
 export const baseVertexShader = `
 precision highp float;
@@ -37,7 +39,8 @@ void main () {
 }
 `;
 
-// Adds a gaussian blob of "color" (dye rgb or a velocity impulse) around point.
+// Adds a gaussian blob of "color" (premultiplied dye rgba, or a velocity
+// impulse in xy) around point.
 export const splatShader = `
 precision highp float;
 precision highp sampler2D;
@@ -45,17 +48,17 @@ varying vec2 vUv;
 uniform sampler2D uTarget;
 uniform sampler2D uObstacles;
 uniform float aspectRatio;
-uniform vec3 color;
+uniform vec4 color;
 uniform vec2 point;
 uniform float radius;
 
 void main () {
     vec2 p = vUv - point.xy;
     p.x *= aspectRatio;
-    vec3 splat = exp(-dot(p, p) / radius) * color;
-    vec3 base = texture2D(uTarget, vUv).xyz;
+    vec4 splat = exp(-dot(p, p) / radius) * color;
+    vec4 base = texture2D(uTarget, vUv);
     float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
-    gl_FragColor = vec4((base + splat) * (1.0 - solid), 1.0);
+    gl_FragColor = (base + splat) * (1.0 - solid);
 }
 `;
 
@@ -426,7 +429,7 @@ uniform vec3 uColorA;
 uniform vec3 uColorB;
 
 void main () {
-    vec3 base = texture2D(uTarget, vUv).rgb;
+    vec4 base = texture2D(uTarget, vUv);
     vec2 perp = vec2(-uDir.y, uDir.x);
     float band = smoothstep(uBand, 0.0, dot(vUv - vec2(0.5), uDir) + 0.5);
     float across = fract(dot(vUv, perp) + 1.0);
@@ -438,12 +441,13 @@ void main () {
     vec3 col = mix(uColorA, uColorB, across);
     float solid = step(0.5, texture2D(uObstacles, vUv).x);
     float k = clamp(s * band * uAmount, 0.0, 1.0);
-    vec3 c = mix(base, col, k);
-    gl_FragColor = vec4(c * (1.0 - solid), 1.0);
+    gl_FragColor = mix(base, vec4(col, 1.0), k) * (1.0 - solid);
 }
 `;
 
-// Final image. Four ways of looking at the same flow.
+// Final image. Four ways of looking at the same flow. Every colour - the
+// background, the inside of obstacles and both colour maps - is a uniform set
+// from the theme.
 export const displayShader = `
 precision highp float;
 precision highp sampler2D;
@@ -458,6 +462,16 @@ uniform float uMode;
 uniform float uSpeedScale;
 uniform float uCurlScale;
 uniform float uPressureScale;
+uniform vec3 uBackground;
+uniform vec3 uSolid;
+uniform vec3 uSpeed0;
+uniform vec3 uSpeed1;
+uniform vec3 uSpeed2;
+uniform vec3 uSpeed3;
+uniform vec3 uSpeed4;
+uniform vec3 uDivLo;
+uniform vec3 uDivMid;
+uniform vec3 uDivHi;
 
 // The pressure solve lives on a collocated grid, which lets a little
 // checkerboard noise through. It is invisible in the smoke, but it would
@@ -478,30 +492,25 @@ vec4 smooth5 (sampler2D tex, vec2 uv) {
 
 vec3 sequential (float t) {
     t = clamp(t, 0.0, 1.0);
-    vec3 c0 = vec3(0.02, 0.05, 0.14);
-    vec3 c1 = vec3(0.09, 0.36, 0.55);
-    vec3 c2 = vec3(0.20, 0.72, 0.62);
-    vec3 c3 = vec3(0.96, 0.83, 0.32);
-    vec3 c4 = vec3(0.98, 0.42, 0.24);
-    if (t < 0.25) return mix(c0, c1, t / 0.25);
-    if (t < 0.50) return mix(c1, c2, (t - 0.25) / 0.25);
-    if (t < 0.75) return mix(c2, c3, (t - 0.50) / 0.25);
-    return mix(c3, c4, (t - 0.75) / 0.25);
+    if (t < 0.25) return mix(uSpeed0, uSpeed1, t / 0.25);
+    if (t < 0.50) return mix(uSpeed1, uSpeed2, (t - 0.25) / 0.25);
+    if (t < 0.75) return mix(uSpeed2, uSpeed3, (t - 0.50) / 0.25);
+    return mix(uSpeed3, uSpeed4, (t - 0.75) / 0.25);
 }
 
 vec3 diverging (float t) {
     t = clamp(t * 0.5 + 0.5, 0.0, 1.0);
-    vec3 lo = vec3(0.38, 0.72, 1.00);
-    vec3 mid = vec3(0.04, 0.06, 0.10);
-    vec3 hi = vec3(1.00, 0.45, 0.28);
-    if (t < 0.5) return mix(lo, mid, t / 0.5);
-    return mix(mid, hi, (t - 0.5) / 0.5);
+    if (t < 0.5) return mix(uDivLo, uDivMid, t / 0.5);
+    return mix(uDivMid, uDivHi, (t - 0.5) / 0.5);
 }
 
 void main () {
     vec3 c;
     if (uMode < 0.5) {
-        c = texture2D(uTexture, vUv).rgb;
+        // premultiplied smoke over the background; where stirring has piled
+        // up more than full coverage, the colour is normalised, not blown out
+        vec4 d = texture2D(uTexture, vUv);
+        c = uBackground * (1.0 - clamp(d.a, 0.0, 1.0)) + d.rgb / max(d.a, 1.0);
     } else if (uMode < 1.5) {
         float speed = length(smooth5(uVelocity, vUv).xy) * uSpeedScale;
         c = sequential(speed);
@@ -513,7 +522,7 @@ void main () {
         c = diverging(p);
     }
     float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
-    c = mix(c, vec3(0.0), solid);
+    c = mix(c, uSolid, solid);
     gl_FragColor = vec4(c, 1.0);
 }
 `;
