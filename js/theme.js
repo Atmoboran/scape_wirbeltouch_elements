@@ -129,6 +129,7 @@ function toGL (theme) {
         speed: theme.colormaps.speed.map(hexToRGB),
         diverging: theme.colormaps.diverging.map(hexToRGB),
         smoke,
-        stir: theme.stir && theme.stir.length ? theme.stir.map(hexToRGB) : null
+        stir: theme.stir && theme.stir.length ? theme.stir.map(hexToRGB) : null,
+        deviceSmoke: hexToRGB(theme.deviceSmoke || '#4d4d4d')
     };
 }

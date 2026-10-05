@@ -9,6 +9,15 @@ import {
 } from './gl.js';
 import * as S from './shaders.js';
 
+const MAX_DEVICES = 8;      // as many as the device shaders loop over
+const MAX_SINKS = 4;
+
+function packSinks (list) {
+    const out = new Float32Array(MAX_SINKS * 4);
+    out.set(list.slice(0, MAX_SINKS * 4));
+    return out;
+}
+
 export const defaultConfig = {
     SIM_RESOLUTION: 256,
     DYE_RESOLUTION: 1024,
@@ -43,6 +52,13 @@ export const defaultConfig = {
     // fills them in from the active theme.
     smokeColorA: [1, 1, 1],
     smokeColorB: [1, 1, 1],
+    // devices, speeds as multiples of the wind speed
+    fanSpeed: 1.8,          // air in a fan's duct
+    rotorSpeed: 2.0,        // a rotor's surface; above 2 a Flettner rotor
+                            // makes most of its lift
+    chimneySpeed: 0.8,      // exhaust leaving the stack
+    sinkSpeed: 1.2,         // air at the rim of a suction vent
+    deviceSmokeColor: [0.3, 0.3, 0.3],
     // rendering
     displayMode: 0,         // 0 dye, 1 speed, 2 vorticity, 3 pressure
     speedScale: 0.012,
@@ -85,6 +101,8 @@ export class FluidSimulation {
             prolong: new Program(gl, vs, S.prolongShader),
             inflow: new Program(gl, vs, S.inflowShader),
             inject: new Program(gl, vs, S.injectShader),
+            drive: new Program(gl, vs, S.driveShader),
+            deviceDye: new Program(gl, vs, S.deviceDyeShader),
             display: new Program(gl, vs, S.displayShader)
         };
 
@@ -234,6 +252,19 @@ export class FluidSimulation {
             velocity.swap();
         }
 
+        // ---- devices: fans, rotors, chimneys --------------------------------
+        const devices = this.collectDevices();
+        if (devices.count > 0) {
+            P.drive.bind();
+            gl.uniform2f(P.drive.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
+            gl.uniform1i(P.drive.uniforms.uVelocity, velocity.read.attach(0));
+            gl.uniform1i(P.drive.uniforms.uObstacles, obst.attach(1));
+            this.setDeviceUniforms(P.drive, devices);
+            gl.uniform1f(P.drive.uniforms.uCell, 1 / this.simHeight);
+            this.blit(velocity.write);
+            velocity.swap();
+        }
+
         // ---- vorticity ------------------------------------------------------
         P.curl.bind();
         gl.uniform2f(P.curl.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
@@ -258,6 +289,13 @@ export class FluidSimulation {
         gl.uniform1i(P.divergence.uniforms.uVelocity, velocity.read.attach(0));
         gl.uniform1i(P.divergence.uniforms.uObstacles, obst.attach(1));
         gl.uniform2f(P.divergence.uniforms.uFlow, flowX, flowY);
+        // Suction only works while the tunnel is open: air cannot be drawn out
+        // of a sealed box, and the pressure solve has no answer if asked to.
+        const open = (flowX !== 0 || flowY !== 0);
+        const sinks = open ? devices.sinks : [];
+        gl.uniform4fv(P.divergence.uniforms['uSinks[0]'] || null, packSinks(sinks));
+        gl.uniform1i(P.divergence.uniforms.uSinkCount, Math.min(MAX_SINKS, sinks.length / 4));
+        gl.uniform1f(P.divergence.uniforms.uAspect, this.simWidth / this.simHeight);
         this.blit(this.divergence);
 
         P.clear.bind();
@@ -266,7 +304,6 @@ export class FluidSimulation {
         // With the wind on, the outlet pins the pressure level and the field can
         // be carried over untouched. With it off every boundary is Neumann, the
         // level is free to drift, and a slow bleed keeps it bounded.
-        const open = (flowX !== 0 || flowY !== 0);
         gl.uniform1f(P.clear.uniforms.value, open ? c.PRESSURE_DECAY : Math.min(c.PRESSURE_DECAY, 0.99));
         this.blit(this.pressure.write);
         this.pressure.swap();
@@ -319,6 +356,54 @@ export class FluidSimulation {
             this.blit(this.dye.write);
             this.dye.swap();
         }
+
+        // ---- smoke of the devices -----------------------------------------------
+        if (devices.count > 0) {
+            P.deviceDye.bind();
+            gl.uniform2f(P.deviceDye.uniforms.texelSize, this.dye.texelSizeX, this.dye.texelSizeY);
+            gl.uniform1i(P.deviceDye.uniforms.uTarget, this.dye.read.attach(0));
+            gl.uniform1i(P.deviceDye.uniforms.uObstacles, obst.attach(1));
+            this.setDeviceUniforms(P.deviceDye, devices);
+            gl.uniform1f(P.deviceDye.uniforms.uAmount, Math.min(1.0, c.smokeRate * dt * 8.0));
+            const col = c.deviceSmokeColor;
+            gl.uniform3f(P.deviceDye.uniforms.uColor, col[0], col[1], col[2]);
+            this.blit(this.dye.write);
+            this.dye.swap();
+        }
+    }
+
+    // The devices among the obstacles, packed for the shaders: positions,
+    // sizes and angles in uDev, type and speed in uDevP, suction vents once
+    // more on their own for the divergence pass.
+    collectDevices () {
+        const c = this.config;
+        const list = this.obstacles.drivers(this.canvas.width, this.canvas.height, MAX_DEVICES);
+        const geo = new Float32Array(MAX_DEVICES * 4);
+        const par = new Float32Array(MAX_DEVICES * 4);
+        const sinks = [];
+        const speeds = [c.fanSpeed, c.rotorSpeed, c.sinkSpeed, c.chimneySpeed];
+        list.forEach((d, i) => {
+            geo.set([d.x, d.y, d.r, d.angle], i * 4);
+            let speed = speeds[d.type] * c.windSpeed;
+            if (d.type === 1) speed *= d.spin;
+            par.set([d.type, speed, 0, 0], i * 4);
+            if (d.type === 2 && sinks.length < 16) {
+                // strength per cell, so that the air arrives at the rim of
+                // the vent at the set speed: q * area = speed * circumference
+                const rCells = Math.max(1, d.r * this.simHeight);
+                sinks.push(d.x, d.y, d.r, 2.8 * speed / rCells);
+            }
+        });
+        return { count: list.length, geo, par, sinks };
+    }
+
+    setDeviceUniforms (program, devices) {
+        const gl = this.gl;
+        const u = program.uniforms;
+        gl.uniform4fv(u['uDev[0]'] || null, devices.geo);
+        gl.uniform4fv(u['uDevP[0]'] || null, devices.par);
+        gl.uniform1i(u.uDevCount, devices.count);
+        gl.uniform1f(u.uAspect, this.simWidth / this.simHeight);
     }
 
     // Jacobi sweeps on the fine grid.

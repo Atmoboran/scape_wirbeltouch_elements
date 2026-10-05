@@ -2,7 +2,7 @@
 // The look and the copy come from the theme (js/theme.js, themes/<name>/).
 
 import { FluidSimulation } from './simulation.js';
-import { ObstacleField, makeShape, PRESETS, centroid } from './obstacles.js';
+import { ObstacleField, makeShape, PRESETS, centroid, ROTATABLE } from './obstacles.js';
 import { applyLanguage } from './i18n.js';
 import { loadTheme, paintSwatches } from './theme.js';
 
@@ -61,7 +61,7 @@ const overlay = document.getElementById('overlay');
 const octx = overlay.getContext('2d');
 const hintEl = document.getElementById('hint');
 
-const field = new ObstacleField({ obstacle: theme.obstacle, selection: theme.selection });
+const field = new ObstacleField({ obstacle: theme.obstacle, device: theme.device, selection: theme.selection });
 let sim = null;
 
 const browserLang = (navigator.language || '').toLowerCase().slice(0, 2);
@@ -69,9 +69,11 @@ const browserLang = (navigator.language || '').toLowerCase().slice(0, 2);
 const state = {
     lang: STRINGS[browserLang] ? browserLang : LANGS[0],
     tool: 'circle',
-    size: 11,          // obstacle radius, per cent of the domain height
-    pen: 2.5,          // freehand pen half width, per cent of the domain height
-    angle: 10,
+    size: 7,           // obstacle radius, per cent of the short side
+    pen: 2,            // freehand pen half width, per cent of the short side
+    angle: 0,
+    angles: { airfoil: 8 },   // the last angle used with each tool
+    spin: -1,          // sense of rotation for new rotors, -1 clockwise
     quality: 2,
     medium: 'air',
     dirKey: 'right',
@@ -86,6 +88,7 @@ let dict = STRINGS[state.lang];
 
 try {
     sim = new FluidSimulation(simCanvas, field, {
+        deviceSmokeColor: theme.gl.deviceSmoke,
         backgroundColor: theme.gl.background,
         solidColor: theme.gl.solid,
         speedColormap: theme.gl.speed,
@@ -240,6 +243,7 @@ function onPointerDown (event) {
             state.selected = shape;
         } else {
             const shape = makeShape(state.tool, p.x, p.y, state.size / 100, state.angle);
+            if (shape.type === 'rotor') shape.spin = state.spin;
             field.add(shape);
             entry.mode = 'move';
             entry.shape = shape;
@@ -345,9 +349,8 @@ function applyGesture (a, b) {
     const v = pixelSpan(a, b);
     const dist = Math.hypot(v.dx, v.dy);
     const factor = clamp(dist / gesture.dist0, 0.15, 8);
-    // screen y points down, so a positive screen rotation is a negative one on
-    // the shape, whose angle is measured counter-clockwise
-    const deltaDeg = -(Math.atan2(v.dy, v.dx) - gesture.ang0) * 180 / Math.PI;
+    // screen y points down: atan2 grows clockwise, as the shape's angle does
+    const deltaDeg = (Math.atan2(v.dy, v.dx) - gesture.ang0) * 180 / Math.PI;
     const dx = (a.x + b.x) / 2 - gesture.mid0.x;
     const dy = (a.y + b.y) / 2 - gesture.mid0.y;
 
@@ -423,15 +426,25 @@ function setPressed (nodes, matcher) {
     nodes.forEach(node => node.setAttribute('aria-pressed', matcher(node) ? 'true' : 'false'));
 }
 
+const TOOL_HINTS = {
+    stir: 'hintStir',
+    eraser: 'hintErase',
+    fan: 'hintFan',
+    rotor: 'hintRotor',
+    sink: 'hintSink',
+    chimney: 'hintChimney'
+};
+
 const toolButtons = Array.from(document.querySelectorAll('.tool'));
 toolButtons.forEach(btn => {
     btn.addEventListener('click', () => {
         state.tool = btn.dataset.tool;
+        state.angle = state.angles[state.tool] || 0;
         setPressed(toolButtons, n => n.dataset.tool === state.tool);
         state.overlayDirty = true;
         updateShapeBar();
         refreshTrash();
-        showHint(state.tool === 'stir' ? 'hintStir' : state.tool === 'eraser' ? 'hintErase' : 'hintPlace');
+        showHint(TOOL_HINTS[state.tool] || 'hintPlace');
         state.lastInteraction = performance.now();
     });
 });
@@ -540,7 +553,8 @@ function setWind (on) {
     // SPIN_DOWN_S in the frame loop while the ends stay open, so the air still
     // in the box drains away instead of slamming against a closed wall
     el('btn-wind').classList.toggle('on', on);
-    el('wind-label').textContent = on ? dict.windOff : dict.windOn;
+    el('btn-wind').setAttribute('aria-pressed', on ? 'true' : 'false');
+    el('wind-state').textContent = on ? dict.switchOn : dict.switchOff;
     setPressed(dirButtons, n => n.dataset.dir === (on ? state.dirKey : 'off'));
     state.lastInteraction = performance.now();
 }
@@ -614,7 +628,7 @@ function setLanguage (lang) {
     paintSwatches(theme);
     el('btn-lang').hidden = LANGS.length < 2;
     if (sim) {
-        el('wind-label').textContent = state.windOn ? dict.windOff : dict.windOn;
+        el('wind-state').textContent = state.windOn ? dict.switchOn : dict.switchOff;
         el('pause-label').textContent = sim.config.paused ? dict.play : dict.pause;
     }
     updateSliderOutputs();
@@ -654,8 +668,22 @@ function updateShapeBar () {
     input.value = String(brush ? state.pen : state.size);
     el('dock-size-label').textContent = brush ? dict.penWidth : dict.size;
     el('out-dock-size').textContent = input.value;
-    el('rotate-group').hidden = state.tool === 'circle';
-    el('out-dock-angle').textContent = Math.round(state.angle) + '°';
+    el('rotate-group').hidden = ROTATABLE.indexOf(state.tool) < 0 && state.tool !== 'rotor';
+    showAngle();
+}
+
+// the angle, or for a rotor its sense of rotation
+function showAngle () {
+    const out = el('out-dock-angle');
+    if (state.tool === 'rotor') {
+        const sel = state.selected && state.selected.type === 'rotor' ? state.selected : null;
+        const spin = sel ? sel.spin : state.spin;
+        out.textContent = spin > 0 ? '↺' : '↻';
+        out.title = spin > 0 ? dict.spinLeft : dict.spinRight;
+    } else {
+        out.textContent = Math.round(state.angle) + '°';
+        out.title = dict.angle;
+    }
 }
 
 el('in-dock-size').addEventListener('input', () => {
@@ -673,23 +701,37 @@ el('in-dock-size').addEventListener('input', () => {
 });
 
 function nudgeAngle (delta) {
+    // a rotor looks the same at any angle: its arrows set which way it turns
+    if (state.tool === 'rotor') {
+        state.spin = delta < 0 ? 1 : -1;      // +1 anticlockwise
+        if (state.selected && state.selected.type === 'rotor') {
+            state.selected.spin = state.spin;
+            state.overlayDirty = true;
+        }
+        showAngle();
+        state.lastInteraction = performance.now();
+        return;
+    }
     state.angle = wrapAngle(state.angle + delta);
+    state.angles[state.tool] = state.angle;
     if (state.selected) {
         state.selected.angle = state.angle;
         markObstaclesChanged();
     }
-    el('out-dock-angle').textContent = Math.round(state.angle) + '°';
+    showAngle();
     state.lastInteraction = performance.now();
 }
 
-el('btn-rot-left').addEventListener('click', () => nudgeAngle(ROTATE_STEP));
-el('btn-rot-right').addEventListener('click', () => nudgeAngle(-ROTATE_STEP));
+// angles count clockwise: turning left takes them down
+el('btn-rot-left').addEventListener('click', () => nudgeAngle(-ROTATE_STEP));
+el('btn-rot-right').addEventListener('click', () => nudgeAngle(ROTATE_STEP));
 
 function syncShapeControls (shape) {
     if (!shape) return;
     if (shape.type === 'brush') state.pen = shape.r * 100;
     else state.size = shape.r * 100;
     state.angle = shape.angle || 0;
+    if (shape.type === 'rotor') state.spin = shape.spin;
     updateShapeBar();
 }
 
@@ -760,8 +802,8 @@ window.addEventListener('keydown', e => {
         case 'c': field.clear(); state.selected = null; markObstaclesChanged(); break;
         case 'r': sim.reset(); break;
         case 'h': el('help').hidden = !el('help').hidden; break;
-        case 'q': nudgeAngle(ROTATE_STEP); break;
-        case 'e': nudgeAngle(-ROTATE_STEP); break;
+        case 'q': nudgeAngle(-ROTATE_STEP); break;
+        case 'e': nudgeAngle(ROTATE_STEP); break;
         case '1': setView(0); break;
         case '2': setView(1); break;
         case '3': setView(2); break;
@@ -810,9 +852,11 @@ function frame (now) {
     if (!sim.config.paused) sim.step(dt);
     sim.render();
 
-    if (state.overlayDirty) {
+    // fan blades and rotors turn, so with a device in the picture the
+    // overlay is redrawn every frame
+    if (state.overlayDirty || (field.hasDevices() && !sim.config.paused)) {
         field.renderOverlay(octx, overlay.width, overlay.height, null,
-            isShapeTool() ? state.selected : null);
+            isShapeTool() ? state.selected : null, now / 1000);
         state.overlayDirty = false;
     }
 

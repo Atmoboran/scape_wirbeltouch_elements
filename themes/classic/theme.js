@@ -23,6 +23,7 @@ export default {
         water: ['#4de0f2', '#476bfa']
     },
     stir: null,                     // null: a random hue per stroke
+    deviceSmoke: '#b48cff',         // chimney smoke, trace of a fan's jet
     colormaps: {
         speed: ['#050d24', '#175c8c', '#33b89e', '#f5d452', '#fa6b3d'],     // slow -> fast
         diverging: ['#61b8ff', '#0a0f1a', '#ff7347']                         // negative, zero, positive
@@ -33,6 +34,10 @@ export default {
         fill: ['#ecf0f7', '#96a2b4'],           // top -> bottom shading
         edge: 'rgba(20, 26, 38, 0.85)',
         shadow: 'rgba(0, 0, 0, 0.55)'
+    },
+    device: {                       // moving parts of fans, rotors, vents
+        color: '#1b2333',
+        accent: '#ffffff'
     },
     selection: {
         color: 'rgba(79, 195, 247, 0.95)',

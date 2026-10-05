@@ -42,6 +42,7 @@ export default {
     canvas: { background, solid },  // empty tunnel; inside of obstacles
     smoke: { air: [a, b], water: [a, b] },    // inlet colours across the stream
     stir: [ … ] | null,             // dye palette for stirring; null = random hues
+    deviceSmoke: '#28348B',         // chimney smoke and fan trace, optional
     colormaps: {
         speed: [c0, c1, c2, c3, c4],          // exactly 5: still -> fast
         diverging: [lo, zero, hi]             // exactly 3: vorticity and pressure
@@ -52,6 +53,9 @@ export default {
         fill: '#62BA91',            // or [top, bottom] for vertical shading
         edge: null,                 // outline colour or null
         shadow: null                // drop shadow colour or null
+    },
+    device: {                       // working parts of fans, rotors, vents
+        color, accent
     },
     selection: {                    // ring around the selected obstacle
         color, glow,                // glow: colour or null
@@ -89,6 +93,9 @@ change the rest, layout included. Things worth knowing:
   height. Use it to keep floating elements (hint, bin) clear of the dock.
 * `html[data-theme="<name>"]` is set while the theme is active.
 * State hooks: `[aria-pressed="true"]` on the selected tool, pill, tab and
-  info button; `.on` on the wind button while the wind blows; `.paused` on the
-  pause button; `.show` on the hint and the bin; `.hot` on the bin while an
+  info button, and on the wind switch while the wind blows (which also gets
+  `.on`; its `.knob` holds the word on/off); `.paused` on the pause button; `.show` on the hint and the bin; `.hot` on the bin while an
   obstacle hovers over it; `body.dock-collapsed`.
+* The tools come in three `.toolgroup`s (obstacles, devices, by hand), each
+  with a `.groupcap` caption and a `.toolrow`. Obstacle tools whose icon is
+  the solid shape they place carry `.solid`, device tools `.device`.

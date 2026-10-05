@@ -71,6 +71,9 @@ export default {
         air: [C.red, C.orange],
         water: [C.navy, C.cyan]
     },
+    // the chimney's smoke and the trace of a fan's jet: set apart from the
+    // warm inlet smoke
+    deviceSmoke: C.navy,
     stir: [C.orange, C.navy, C.cyan, C.red, C.purple, C.greenStrong],
     colormaps: {
         // pale to strong, light to dark: still to fast
@@ -84,6 +87,11 @@ export default {
         fill: C.green,
         edge: null,
         shadow: null
+    },
+    // the working parts of fans, rotors and vents
+    device: {
+        color: C.navy,
+        accent: C.white
     },
     // a thin black line held off the shape, like the outline layer of the
     // graphic system

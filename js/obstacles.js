@@ -1,8 +1,16 @@
 // Obstacle handling.
 //
 // Shapes live in normalised screen coordinates: x and y in [0,1] with y
-// pointing DOWN (like the DOM), radius r as a fraction of the domain height so
-// circles stay round on any aspect ratio.
+// pointing DOWN (like the DOM), angle in degrees CLOCKWISE on screen - so for
+// the usual flow from the left a positive angle lifts the nose of a wing, as
+// an angle of attack should - radius r as a fraction of the SHORT side of the
+// domain, so circles stay round on any aspect ratio and an obstacle never fills
+// a portrait screen from wall to wall. Shapes that belong to the domain itself
+// (ground, channel walls, towers) set unit = 'h' and scale with its height.
+//
+// Devices are obstacles with a function - a fan, a spinning rotor, a suction
+// vent, a chimney. Their solid parts go into the mask like any other shape;
+// what they do to the air is handed to the solver as a short list of drivers.
 //
 // The same shape list is painted twice:
 //   * into a small hidden canvas at simulation resolution -> boundary mask
@@ -11,9 +19,25 @@
 let nextId = 1;
 
 export const SHAPE_TYPES = ['circle', 'square', 'plate', 'airfoil', 'hill', 'brush'];
+export const DEVICE_TYPES = ['fan', 'rotor', 'sink', 'chimney'];
+
+// shapes that can be turned; a circle and a suction vent look the same at
+// any angle, a rotor's arrows set its sense of rotation instead
+export const ROTATABLE = ['square', 'plate', 'airfoil', 'hill', 'brush', 'box', 'fan', 'chimney'];
 
 export function makeShape (type, x, y, r, angle) {
-    return { id: nextId++, type, x, y, r, angle: angle || 0, points: null };
+    const shape = { id: nextId++, type, x, y, r, angle: angle || 0, points: null };
+    if (type === 'rotor') shape.spin = -1;     // clockwise: lift upwards in a flow from the left
+    return shape;
+}
+
+export function isDevice (shape) {
+    return DEVICE_TYPES.indexOf(shape.type) >= 0;
+}
+
+// The length a shape's r is measured in, in pixels.
+export function unitLength (s, w, h) {
+    return s.unit === 'h' ? h : Math.min(w, h);
 }
 
 // How obstacles look on the overlay. The theme replaces this (see
@@ -23,6 +47,10 @@ const DEFAULT_STYLE = {
         fill: '#808080',    // a colour, or [top, bottom] for vertical shading
         edge: null,         // outline colour, or null
         shadow: null        // drop shadow colour, or null
+    },
+    device: {
+        color: '#303030',   // moving parts and markings of fans, rotors ...
+        accent: '#ffffff'   // arrows drawn on top of them
     },
     selection: {
         color: '#ffffff',   // ring around the selected obstacle
@@ -38,6 +66,7 @@ export class ObstacleField {
     constructor (style = {}) {
         this.style = {
             obstacle: Object.assign({}, DEFAULT_STYLE.obstacle, style.obstacle),
+            device: Object.assign({}, DEFAULT_STYLE.device, style.device),
             selection: Object.assign({}, DEFAULT_STYLE.selection, style.selection)
         };
         this.shapes = [];
@@ -95,6 +124,30 @@ export class ObstacleField {
         return this.shapes.length === 0;
     }
 
+    hasDevices () {
+        return this.shapes.some(isDevice);
+    }
+
+    // What the devices do to the air, for the solver. Positions are in uv
+    // (y up), lengths in units of the domain height, angles in radians
+    // counter-clockwise, as is usual with y up. At most max of them, the most recently placed win.
+    drivers (w, h, max) {
+        const out = [];
+        for (let i = this.shapes.length - 1; i >= 0 && out.length < max; i--) {
+            const s = this.shapes[i];
+            if (!isDevice(s)) continue;
+            out.push({
+                type: DEVICE_TYPES.indexOf(s.type),
+                x: s.x,
+                y: 1 - s.y,
+                r: s.r * unitLength(s, w, h) / h,
+                angle: -(s.angle || 0) * Math.PI / 180,
+                spin: s.spin || 1
+            });
+        }
+        return out;
+    }
+
     // Repaint the physics mask: white = solid, black = fluid.
     renderMask () {
         const ctx = this.maskCtx;
@@ -136,18 +189,19 @@ export class ObstacleField {
     // Pretty rendering on top of the simulation. The selected shape - the one
     // the size and rotate controls act on - gets a halo so it is obvious which
     // obstacle a tap picked up.
-    renderOverlay (ctx, w, h, ghost, selected) {
+    // time (seconds) turns the fan blades and rotors
+    renderOverlay (ctx, w, h, ghost, selected, time = 0) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, w, h);
-        for (const s of this.shapes) paintShape(ctx, s, w, h, 1.0, s === selected, this.style);
-        if (ghost) paintShape(ctx, ghost, w, h, 0.45, false, this.style);
+        for (const s of this.shapes) paintShape(ctx, s, w, h, 1.0, s === selected, this.style, time);
+        if (ghost) paintShape(ctx, ghost, w, h, 0.45, false, this.style, time);
     }
 
     hitTest (ctx, x, y, w, h) {
         const px = x * w;
         const py = y * h;
         for (let i = this.shapes.length - 1; i >= 0; i--) {
-            const p = shapePath(this.shapes[i], w, h);
+            const p = hitPath(this.shapes[i], w, h);
             if (p.isStroke) {
                 ctx.lineWidth = p.lineWidth;
                 if (ctx.isPointInStroke(p.path, px, py)) return this.shapes[i];
@@ -159,18 +213,18 @@ export class ObstacleField {
     }
 }
 
-function paintShape (ctx, s, w, h, alpha, selected, style) {
+function paintShape (ctx, s, w, h, alpha, selected, style, time) {
     const p = shapePath(s, w, h);
     const look = style.obstacle;
-    if (selected) paintSelection(ctx, p, h, alpha, style.selection);
-    const R = Math.max(2, s.r * h);
+    if (selected) paintSelection(ctx, isDevice(s) ? hitPath(s, w, h) : p, h, alpha, style.selection);
+    const R = Math.max(2, s.r * unitLength(s, w, h));
     let paint = look.fill;
     if (Array.isArray(paint)) {
         if (paint.length > 1) {
             const cy = (s.type === 'brush' && s.points && s.points.length ? centroid(s.points).y : s.y) * h;
             // shade over the shape's own height, otherwise a tall tower gets a
             // hard band across its middle
-            const span = s.type === 'box' ? R * (s.hr || 1) : R;
+            const span = s.type === 'box' ? (s.hh || 0) * h : R;
             const grad = ctx.createLinearGradient(0, cy - span, 0, cy + span);
             grad.addColorStop(0, paint[0]);
             grad.addColorStop(1, paint[paint.length - 1]);
@@ -203,6 +257,123 @@ function paintShape (ctx, s, w, h, alpha, selected, style) {
         }
     }
     ctx.restore();
+    if (isDevice(s)) paintDevice(ctx, s, w, h, R, alpha, style.device, time);
+}
+
+// The working parts on top of a device: what turns, and which way the air goes.
+function paintDevice (ctx, s, w, h, R, alpha, look, time) {
+    const a = (s.angle || 0) * Math.PI / 180;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(s.x * w, s.y * h);
+    ctx.rotate(a);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const line = Math.max(1.5, R * 0.07);
+    switch (s.type) {
+        case 'fan': {
+            // three blades turning in the duct, and an arrow out of the front
+            ctx.save();
+            ctx.translate(-R * 0.05, 0);
+            ctx.scale(0.35, 1);                    // seen from the side
+            ctx.rotate(time * 9);
+            ctx.fillStyle = look.color;
+            for (let i = 0; i < 3; i++) {
+                ctx.rotate(Math.PI * 2 / 3);
+                ctx.beginPath();
+                ctx.ellipse(0, -R * 0.3, R * 0.16, R * 0.3, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+            ctx.fillStyle = look.color;
+            ctx.beginPath();
+            ctx.arc(-R * 0.05, 0, R * 0.1, 0, Math.PI * 2);
+            ctx.fill();
+            arrow(ctx, R * 0.35, 0, R * 0.95, 0, line, look.color);
+            break;
+        }
+        case 'rotor': {
+            // a bar across the drum shows it turning, arrows show the sense
+            const turn = -(s.spin || 1) * time * 2.2;
+            ctx.rotate(turn);
+            ctx.strokeStyle = look.color;
+            ctx.lineWidth = line * 1.4;
+            ctx.beginPath();
+            ctx.moveTo(-R * 0.72, 0);
+            ctx.lineTo(R * 0.72, 0);
+            ctx.stroke();
+            ctx.rotate(-turn);
+            ctx.lineWidth = line;
+            const dir = s.spin || 1;            // +1 counter-clockwise on screen
+            for (let k = 0; k < 2; k++) {
+                const a0 = k * Math.PI + 0.35;
+                const a1 = a0 + 1.6;
+                ctx.beginPath();
+                ctx.arc(0, 0, R * 0.5, -a0, -a1, true);
+                ctx.stroke();
+                const tip = dir > 0 ? -a1 : -a0;
+                const tx = Math.cos(tip) * R * 0.5;
+                const ty = Math.sin(tip) * R * 0.5;
+                const t = dir > 0 ? -1 : 1;    // tangent direction at the tip
+                const ux = -Math.sin(tip) * t;
+                const uy = Math.cos(tip) * t;
+                head(ctx, tx, ty, ux, uy, line * 2.6, look.color);
+            }
+            break;
+        }
+        case 'sink': {
+            // a grille, with arrows pointing in
+            ctx.setLineDash([line * 1.6, line * 1.6]);
+            ctx.strokeStyle = look.color;
+            ctx.lineWidth = line;
+            ctx.beginPath();
+            ctx.arc(0, 0, R, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = look.color;
+            ctx.beginPath();
+            ctx.arc(0, 0, R * 0.32, 0, Math.PI * 2);
+            ctx.fill();
+            for (let k = 0; k < 4; k++) {
+                const ang = k * Math.PI / 2 + Math.PI / 4;
+                const c = Math.cos(ang);
+                const d = Math.sin(ang);
+                arrow(ctx, c * R * 0.9, d * R * 0.9, c * R * 0.45, d * R * 0.45, line, look.color);
+            }
+            break;
+        }
+        case 'chimney': {
+            // a dark band round the top of the stack
+            ctx.fillStyle = look.color;
+            ctx.fillRect(-R * 0.27, -R, R * 0.54, R * 0.22);
+            break;
+        }
+    }
+    ctx.restore();
+}
+
+function arrow (ctx, x0, y0, x1, y1, width, color) {
+    const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+    const ux = (x1 - x0) / len;
+    const uy = (y1 - y0) / len;
+    const size = width * 2.6;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1 - ux * size * 0.6, y1 - uy * size * 0.6);
+    ctx.stroke();
+    head(ctx, x1, y1, ux, uy, size, color);
+}
+
+function head (ctx, x, y, ux, uy, size, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - ux * size - uy * size * 0.6, y - uy * size + ux * size * 0.6);
+    ctx.lineTo(x - ux * size + uy * size * 0.6, y - uy * size - ux * size * 0.6);
+    ctx.closePath();
+    ctx.fill();
 }
 
 // A rim just outside the silhouette, drawn underneath the shape itself so only
@@ -239,8 +410,8 @@ export function shapePath (s, w, h) {
     const path = new Path2D();
     const cx = s.x * w;
     const cy = s.y * h;
-    const R = Math.max(2, s.r * h);
-    const a = -(s.angle || 0) * Math.PI / 180; // screen y points down
+    const R = Math.max(2, s.r * unitLength(s, w, h));
+    const a = (s.angle || 0) * Math.PI / 180;  // clockwise, as screen y points down
     const cos = Math.cos(a);
     const sin = Math.sin(a);
     const tx = (px, py) => [cx + px * cos - py * sin, cy + px * sin + py * cos];
@@ -251,7 +422,7 @@ export function shapePath (s, w, h) {
             break;
         }
         case 'box': {
-            const hh = R * (s.hr || 1);
+            const hh = Math.max(2, (s.hh || 0) * h);
             polygon(path, [[-R, -hh], [R, -hh], [R, hh], [-R, hh]], tx);
             break;
         }
@@ -270,6 +441,26 @@ export function shapePath (s, w, h) {
         }
         case 'airfoil': {
             polygon(path, airfoilPoints(R), tx);
+            break;
+        }
+        case 'fan': {
+            // the duct: two walls along the blowing direction
+            const L = R * 0.62;
+            const t = Math.max(1.5, R * 0.08);
+            polygon(path, [[-L, -R * 0.78 - t], [L, -R * 0.78 - t], [L, -R * 0.78 + t], [-L, -R * 0.78 + t]], tx);
+            polygon(path, [[-L, R * 0.78 - t], [L, R * 0.78 - t], [L, R * 0.78 + t], [-L, R * 0.78 + t]], tx);
+            break;
+        }
+        case 'rotor': {
+            path.arc(cx, cy, R, 0, Math.PI * 2);
+            break;
+        }
+        case 'sink': {
+            // nothing solid: the vent just takes air away
+            break;
+        }
+        case 'chimney': {
+            polygon(path, [[-R * 0.27, -R], [R * 0.27, -R], [R * 0.32, R], [-R * 0.32, R]], tx);
             break;
         }
         case 'brush': {
@@ -299,6 +490,27 @@ export function shapePath (s, w, h) {
     return { path, isStroke: false, lineWidth: 0 };
 }
 
+// What a finger has to hit to pick a shape up. Devices are grabbed by their
+// whole footprint, not just by their solid parts.
+export function hitPath (s, w, h) {
+    if (!isDevice(s)) return shapePath(s, w, h);
+    const path = new Path2D();
+    const R = Math.max(2, s.r * unitLength(s, w, h));
+    const cx = s.x * w;
+    const cy = s.y * h;
+    if (s.type === 'rotor' || s.type === 'sink') {
+        path.arc(cx, cy, R, 0, Math.PI * 2);
+        return { path, isStroke: false, lineWidth: 0 };
+    }
+    const a = (s.angle || 0) * Math.PI / 180;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    const tx = (px, py) => [cx + px * cos - py * sin, cy + px * sin + py * cos];
+    if (s.type === 'fan') polygon(path, [[-R * 0.7, -R * 0.9], [R, -R * 0.9], [R, R * 0.9], [-R * 0.7, R * 0.9]], tx);
+    else polygon(path, [[-R * 0.4, -R * 1.1], [R * 0.4, -R * 1.1], [R * 0.4, R], [-R * 0.4, R]], tx);
+    return { path, isStroke: false, lineWidth: 0 };
+}
+
 export function centroid (pts) {
     let x = 0;
     let y = 0;
@@ -314,32 +526,54 @@ function polygon (path, pts, tx) {
     path.closePath();
 }
 
-// Symmetric NACA 0015 section, chord = 2R, centred on the quarter chord.
-function airfoilPoints (R) {
-    const t = 0.15;
-    const n = 28;
+// NACA 4412, the cambered section of countless wind tunnel photographs and
+// textbook figures: 4 % camber at 40 % chord, 12 % thick, round nose, sharp
+// trailing edge. Chord = 2R, turning about the quarter chord. Screen y points
+// down, so the upper surface has negative y.
+export function airfoilPoints (R) {
+    const m = 0.04;
+    const p = 0.4;
+    const t = 0.12;
+    const n = 36;
     const chord = 2 * R;
     const upper = [];
     const lower = [];
     for (let i = 0; i <= n; i++) {
         const beta = (i / n) * Math.PI;
-        const xc = 0.5 * (1 - Math.cos(beta)); // cosine spacing, fine at the nose
-        const yt = 5 * t * (0.2969 * Math.sqrt(xc) - 0.1260 * xc - 0.3516 * xc * xc +
-            0.2843 * xc * xc * xc - 0.1015 * xc * xc * xc * xc);
-        const px = (xc - 0.35) * chord;
-        upper.push([px, -yt * chord]);
-        lower.push([px, yt * chord]);
+        const x = 0.5 * (1 - Math.cos(beta)); // cosine spacing, fine at the nose
+        // -0.1036 instead of -0.1015 closes the trailing edge
+        const yt = 5 * t * (0.2969 * Math.sqrt(x) - 0.1260 * x - 0.3516 * x * x +
+            0.2843 * x * x * x - 0.1036 * x * x * x * x);
+        const yc = x < p ? m / (p * p) * (2 * p * x - x * x)
+            : m / ((1 - p) * (1 - p)) * ((1 - 2 * p) + 2 * p * x - x * x);
+        const dyc = x < p ? 2 * m / (p * p) * (p - x) : 2 * m / ((1 - p) * (1 - p)) * (p - x);
+        const th = Math.atan(dyc);
+        const ox = (-0.35) * chord;
+        upper.push([ox + (x - yt * Math.sin(th)) * chord, -(yc + yt * Math.cos(th)) * chord]);
+        lower.push([ox + (x + yt * Math.sin(th)) * chord, -(yc - yt * Math.cos(th)) * chord]);
     }
+    // back along the lower surface, without repeating trailing edge and nose
     lower.reverse();
-    return upper.concat(lower);
+    return upper.concat(lower.slice(1, -1));
 }
 
 // A building standing on the ground: x centre, half width and full height,
 // both as fractions of the domain height.
 function tower (x, halfWidth, height) {
     const shape = makeShape('box', x, 1 - height / 2, halfWidth, 0);
-    shape.hr = (height / 2) / halfWidth;
+    shape.unit = 'h';
+    shape.hh = height / 2;
     return shape;
+}
+
+// a shape that belongs to the domain: sized by its height, not its short side
+function fixed (shape) {
+    shape.unit = 'h';
+    return shape;
+}
+
+function device (type, x, y, r, angle) {
+    return makeShape(type, x, y, r, angle);
 }
 
 // A room built from four walls, with a window in the windward side and
@@ -353,44 +587,47 @@ function roomWalls (aspect, openWindward, openLeeward) {
     const cy = 0.5;
     const halfW = W / aspect;
     const shapes = [
-        makeShape('plate', cx, cy - W, W, 0),
-        makeShape('plate', cx, cy + W, W, 0)
+        fixed(makeShape('plate', cx, cy - W, W, 0)),
+        fixed(makeShape('plate', cx, cy + W, W, 0))
     ];
     const wall = (x, open) => {
         if (!open) {
-            shapes.push(makeShape('plate', x, cy, W, 90));
+            shapes.push(fixed(makeShape('plate', x, cy, W, 90)));
             return;
         }
-        shapes.push(makeShape('plate', x, cy - W * 0.62, W * 0.38, 90));
-        shapes.push(makeShape('plate', x, cy + W * 0.62, W * 0.38, 90));
+        shapes.push(fixed(makeShape('plate', x, cy - W * 0.62, W * 0.38, 90)));
+        shapes.push(fixed(makeShape('plate', x, cy + W * 0.62, W * 0.38, 90)));
     };
     wall(cx - halfW, openWindward);
     wall(cx + halfW, openLeeward);
     return shapes;
 }
 
-// Ready-made scenes. aspect = width / height of the domain.
+// Ready-made scenes. aspect = width / height of the domain. Free-standing
+// bodies are sized by the short side of the screen, so they keep room for a
+// wake on a portrait phone too; anything standing on the ground or forming a
+// channel is sized by the height.
 export const PRESETS = {
     empty: () => [],
-    cylinder: () => [makeShape('circle', 0.34, 0.5, 0.11)],
-    airfoil: () => [makeShape('airfoil', 0.36, 0.52, 0.16, 10)],
-    plate: () => [makeShape('plate', 0.35, 0.5, 0.18, 70)],
+    cylinder: () => [makeShape('circle', 0.30, 0.5, 0.07)],
+    airfoil: () => [makeShape('airfoil', 0.32, 0.52, 0.12, 6)],
+    plate: () => [makeShape('plate', 0.32, 0.5, 0.11, 70)],
     building: () => [
-        makeShape('square', 0.40, 0.80, 0.13),
-        makeShape('square', 0.68, 0.86, 0.08)
+        fixed(makeShape('square', 0.40, 0.80, 0.13)),
+        fixed(makeShape('square', 0.68, 0.86, 0.08))
     ],
     mountains: () => [
-        makeShape('hill', 0.32, 0.88, 0.14),
-        makeShape('hill', 0.55, 0.92, 0.09),
-        makeShape('hill', 0.74, 0.89, 0.12)
+        fixed(makeShape('hill', 0.32, 0.88, 0.14)),
+        fixed(makeShape('hill', 0.55, 0.92, 0.09)),
+        fixed(makeShape('hill', 0.74, 0.89, 0.12))
     ],
     venturi: () => [
-        makeShape('square', 0.45, -0.07, 0.33),
-        makeShape('square', 0.45, 1.07, 0.33)
+        fixed(makeShape('square', 0.45, -0.07, 0.33)),
+        fixed(makeShape('square', 0.45, 1.07, 0.33))
     ],
     slit: () => [
-        makeShape('plate', 0.42, 0.20, 0.22, 90),
-        makeShape('plate', 0.42, 0.80, 0.22, 90)
+        fixed(makeShape('plate', 0.42, 0.20, 0.22, 90)),
+        fixed(makeShape('plate', 0.42, 0.80, 0.22, 90))
     ],
     // Frankfurt seen from the west: the cluster of towers around the
     // Bankenviertel, with the tallest two in the middle.
@@ -416,32 +653,55 @@ export const PRESETS = {
     // A solid windbreak and a slatted one of the same height. The solid wall
     // throws a strong vortex and the shelter behind it is short; the slatted
     // fence bleeds air through and shelters much further downwind.
-    wallSolid: () => [makeShape('plate', 0.38, 0.775, 0.225, 90)],
+    wallSolid: () => [fixed(makeShape('plate', 0.38, 0.775, 0.225, 90))],
     fence: () => [
-        makeShape('plate', 0.38, 0.9625, 0.0375, 90),
-        makeShape('plate', 0.38, 0.8575, 0.0375, 90),
-        makeShape('plate', 0.38, 0.7525, 0.0375, 90),
-        makeShape('plate', 0.38, 0.6475, 0.0375, 90)
+        fixed(makeShape('plate', 0.38, 0.9625, 0.0375, 90)),
+        fixed(makeShape('plate', 0.38, 0.8575, 0.0375, 90)),
+        fixed(makeShape('plate', 0.38, 0.7525, 0.0375, 90)),
+        fixed(makeShape('plate', 0.38, 0.6475, 0.0375, 90))
     ],
     // Three rotors in a row, seen edge on. The second and third sit in the
     // wake of the first and see markedly slower air.
     windfarm: () => [
-        makeShape('plate', 0.28, 0.55, 0.12, 90), tower(0.28, 0.008, 0.33),
-        makeShape('plate', 0.50, 0.55, 0.12, 90), tower(0.50, 0.008, 0.33),
-        makeShape('plate', 0.72, 0.55, 0.12, 90), tower(0.72, 0.008, 0.33)
+        fixed(makeShape('plate', 0.28, 0.55, 0.12, 90)), tower(0.28, 0.008, 0.33),
+        fixed(makeShape('plate', 0.50, 0.55, 0.12, 90)), tower(0.50, 0.008, 0.33),
+        fixed(makeShape('plate', 0.72, 0.55, 0.12, 90)), tower(0.72, 0.008, 0.33)
     ],
     // A bridge deck: a bluff body that sheds alternately above and below,
     // which is what made the Tacoma Narrows bridge famous.
-    bridge: () => [makeShape('plate', 0.45, 0.5, 0.22, 0)],
+    bridge: () => [makeShape('plate', 0.40, 0.5, 0.16, 0)],
     // The same wing twice, at a sensible angle and at far too steep a one.
     stall: () => [
-        makeShape('airfoil', 0.38, 0.30, 0.125, 6),
-        makeShape('airfoil', 0.38, 0.70, 0.125, 26)
+        makeShape('airfoil', 0.34, 0.30, 0.10, 4),
+        makeShape('airfoil', 0.34, 0.66, 0.10, 24)
     ],
     roomOne: aspect => roomWalls(aspect, true, false),
     roomCross: aspect => roomWalls(aspect, true, true),
     tandem: () => [
-        makeShape('circle', 0.28, 0.5, 0.085),
-        makeShape('circle', 0.55, 0.5, 0.085)
+        makeShape('circle', 0.26, 0.5, 0.055),
+        makeShape('circle', 0.50, 0.5, 0.055)
+    ],
+
+    // ---- devices ----------------------------------------------------------
+    // A still cylinder above, a spinning one below: the spinning one drags
+    // the air round with it, the wake tilts and the cylinder is pushed
+    // sideways - the Magnus effect, as on a Flettner ship or a sliced ball.
+    magnus: () => [
+        makeShape('circle', 0.30, 0.30, 0.06),
+        device('rotor', 0.30, 0.64, 0.06)
+    ],
+    // A jet blown across the stream bends over and rolls up - like exhaust
+    // from a stack or a jet engine's thrust reverser.
+    jet: () => [device('fan', 0.30, 0.78, 0.07, -90)],
+    // A chimney upwind of a tall block: the plume is pulled down into the
+    // eddy behind the building - why chimneys must stand clear of the roofs.
+    chimney: () => [
+        fixed(device('chimney', 0.22, 0.86, 0.14)),
+        tower(0.45, 0.06, 0.32)
+    ],
+    // Smoke from a stack, caught by a suction vent downwind.
+    extraction: () => [
+        fixed(device('chimney', 0.25, 0.90, 0.10)),
+        device('sink', 0.55, 0.74, 0.06)
     ]
 };

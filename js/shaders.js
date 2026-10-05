@@ -99,11 +99,24 @@ varying highp vec2 vB;
 uniform sampler2D uVelocity;
 uniform sampler2D uObstacles;
 uniform vec2 uFlow;
+uniform vec4 uSinks[4];     // x, y (uv), radius (domain heights), strength
+uniform int uSinkCount;
+uniform float uAspect;
 
 void main () {
     if (texture2D(uObstacles, vUv).x > 0.5) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
+    }
+
+    // A suction vent: ask the pressure solve for a velocity field that
+    // converges here. Solving lap(p) = div + q leaves div(u) = -q behind.
+    float sink = 0.0;
+    for (int i = 0; i < 4; i++) {
+        if (i >= uSinkCount) break;
+        vec4 S = uSinks[i];
+        float r = length(vec2((vUv.x - S.x) * uAspect, vUv.y - S.y));
+        sink += S.w * (1.0 - smoothstep(S.z * 0.6, S.z, r));
     }
 
     // The stored velocity is read as a MAC arrangement: x is the flux through
@@ -134,7 +147,7 @@ void main () {
     if (vB.y < 0.0 && !openV) south = 0.0;
     if (vT.y > 1.0 && !openV) north = 0.0;
 
-    gl_FragColor = vec4((east - west) + (north - south), 0.0, 0.0, 1.0);
+    gl_FragColor = vec4((east - west) + (north - south) + sink, 0.0, 0.0, 1.0);
 }
 `;
 
@@ -409,6 +422,106 @@ void main () {
     v = mix(v, uSpeed * uDir + wobble * perp, w);
     float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
     gl_FragColor = vec4(v * (1.0 - solid), 0.0, 1.0);
+}
+`;
+
+// Devices that push the air: a fan drives the air in its duct along its
+// axis, a rotor drags a thin layer round with its surface, a chimney blows
+// its exhaust out of the top. Each one nudges the velocity towards what it
+// wants, the projection afterwards keeps the field free of divergence.
+export const driveShader = `
+precision highp float;
+precision highp sampler2D;
+varying vec2 vUv;
+uniform sampler2D uVelocity;
+uniform sampler2D uObstacles;
+uniform vec4 uDev[8];       // x, y (uv), radius (domain heights), angle (rad)
+uniform vec4 uDevP[8];      // type (0 fan, 1 rotor, 3 chimney), speed, 0, 0
+uniform int uDevCount;
+uniform float uAspect;
+uniform float uCell;        // one simulation cell in domain heights
+
+void main () {
+    vec2 v = texture2D(uVelocity, vUv).xy;
+    for (int i = 0; i < 8; i++) {
+        if (i >= uDevCount) break;
+        vec4 D = uDev[i];
+        vec4 P = uDevP[i];
+        vec2 d = vec2((vUv.x - D.x) * uAspect, vUv.y - D.y);
+        float R = D.z;
+        vec2 ax = vec2(cos(D.w), sin(D.w));
+        vec2 up = vec2(-ax.y, ax.x);
+        if (P.x < 0.5) {
+            // fan: the inside of the duct
+            float u = dot(d, ax);
+            float w = dot(d, up);
+            float k = (1.0 - smoothstep(R * 0.30, R * 0.45, abs(u)))
+                    * (1.0 - smoothstep(R * 0.55, R * 0.70, abs(w)));
+            v = mix(v, ax * P.y, k * 0.5);
+        } else if (P.x < 1.5) {
+            // rotor: a ring of air a few cells thick turns with the surface
+            float r = length(d);
+            float ring = smoothstep(R - uCell, R, r)
+                       * (1.0 - smoothstep(R + uCell * 1.5, R + uCell * 3.0, r));
+            vec2 tang = vec2(-d.y, d.x) / max(r, 1e-5);
+            v = mix(v, tang * P.y, ring * 0.9);
+        } else if (P.x > 2.5) {
+            // chimney: exhaust leaving the top of the stack
+            vec2 q = d - up * R * 1.08;
+            float k = 1.0 - smoothstep(R * 0.14, R * 0.26, length(q));
+            v = mix(v, up * P.y, k * 0.6);
+        }
+    }
+    float solid = smoothstep(0.28, 0.72, texture2D(uObstacles, vUv).x);
+    gl_FragColor = vec4(v * (1.0 - solid), 0.0, 1.0);
+}
+`;
+
+// Smoke of the devices: the chimney releases it, the fan marks its jet with a
+// thin trace, a suction vent swallows what reaches its middle.
+export const deviceDyeShader = `
+precision highp float;
+precision highp sampler2D;
+varying vec2 vUv;
+uniform sampler2D uTarget;
+uniform sampler2D uObstacles;
+uniform vec4 uDev[8];
+uniform vec4 uDevP[8];
+uniform int uDevCount;
+uniform float uAspect;
+uniform float uAmount;
+uniform vec3 uColor;
+
+void main () {
+    vec4 c = texture2D(uTarget, vUv);
+    for (int i = 0; i < 8; i++) {
+        if (i >= uDevCount) break;
+        vec4 D = uDev[i];
+        vec4 P = uDevP[i];
+        vec2 d = vec2((vUv.x - D.x) * uAspect, vUv.y - D.y);
+        float R = D.z;
+        vec2 ax = vec2(cos(D.w), sin(D.w));
+        vec2 up = vec2(-ax.y, ax.x);
+        if (P.x < 0.5) {
+            float u = dot(d - ax * R * 0.42, ax);
+            float w = dot(d, up);
+            float stripe = 1.0 - smoothstep(0.15, 0.32, abs(fract(w / R * 2.2 + 0.5) - 0.5));
+            float k = (1.0 - smoothstep(R * 0.03, R * 0.08, abs(u)))
+                    * (1.0 - smoothstep(R * 0.5, R * 0.62, abs(w))) * stripe;
+            c = mix(c, vec4(uColor, 1.0), clamp(k * uAmount * 0.6, 0.0, 1.0));
+        } else if (P.x < 1.5) {
+            // nothing: a rotor only stirs
+        } else if (P.x < 2.5) {
+            float r = length(d);
+            c *= 1.0 - (1.0 - smoothstep(R * 0.2, R * 0.55, r)) * clamp(uAmount * 4.0, 0.0, 1.0);
+        } else {
+            vec2 q = d - up * R * 1.06;
+            float k = 1.0 - smoothstep(R * 0.10, R * 0.22, length(q));
+            c = mix(c, vec4(uColor, 1.0), clamp(k * uAmount * 1.5, 0.0, 1.0));
+        }
+    }
+    float solid = step(0.5, texture2D(uObstacles, vUv).x);
+    gl_FragColor = c * (1.0 - solid);
 }
 `;
 

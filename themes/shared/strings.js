@@ -16,7 +16,8 @@ export const STRINGS = {
         title: 'WirbelTouch',
         subtitle: 'Strömung zum Anfassen',
         tools: 'Werkzeug',
-        toolStir: 'Wirbeln',
+        toolStir: 'Fingerwirbel',
+        toolStirTitle: 'Fingerwirbel: mit dem Finger Luft anschubsen',
         toolCircle: 'Zylinder',
         toolSquare: 'Quader',
         toolPlate: 'Platte',
@@ -24,6 +25,15 @@ export const STRINGS = {
         toolHill: 'Berg',
         toolBrush: 'Freihand',
         toolEraser: 'Radierer',
+        toolFan: 'Gebläse',
+        toolRotor: 'Rotor',
+        toolSink: 'Absaugung',
+        toolChimney: 'Schornstein',
+        groupShapes: 'Hindernisse',
+        groupDevices: 'Mit Funktion',
+        groupHand: 'Hand',
+        spinLeft: 'dreht links herum',
+        spinRight: 'dreht rechts herum',
         penWidth: 'Stiftbreite',
         rotateLeft: 'Nach links drehen',
         rotateRight: 'Nach rechts drehen',
@@ -48,8 +58,10 @@ export const STRINGS = {
         infoVorticity: 'Das grobe Rechengitter frisst kleine Wirbel auf. Dieser Regler gibt ihnen künstlich Energie zurück \u2013 ein Trick, kein echter physikalischer Term. Zu große Werte erzeugen Rauschen.',
         infoFade: 'Wie schnell sich der Rauch auflöst. Bei 0 bleiben die Fäden sichtbar, bis sie aus dem Bild gelaufen sind.',
         infoQuality: 'Feinheit des Rechengitters. Höher heißt kleinere Wirbel, aber deutlich mehr Rechenarbeit \u2013 auf dem Smartphone lieber eine Stufe niedriger.',
-        windOn: 'Wind an',
-        windOff: 'Wind aus',
+        windLabel: 'Wind',
+        windTitle: 'Windkanal ein- oder ausschalten',
+        switchOn: 'an',
+        switchOff: 'aus',
         pause: 'Pause',
         play: 'Weiter',
         resetFlow: 'Strömung neu',
@@ -76,6 +88,10 @@ export const STRINGS = {
         sceneWindfarm: 'Windpark',
         sceneBridge: 'Brückenquerschnitt',
         sceneStall: 'Strömungsabriss',
+        sceneMagnus: 'Magnus-Effekt',
+        sceneJet: 'Strahl im Querwind',
+        sceneChimney: 'Schornstein vor Hochhaus',
+        sceneExtraction: 'Absaugung',
         groupBasics: 'Grundformen',
         groupCity: 'Stadt',
         groupLand: 'Landschaft',
@@ -156,7 +172,11 @@ export const STRINGS = {
         qualityHigh: 'hoch',
         qualityUltra: 'sehr hoch',
         hintPlace: 'Tippen: Hindernis setzen · Ziehen: verschieben',
-        hintStir: 'Ziehen: Luft in Bewegung setzen',
+        hintStir: 'Fingerwirbel: über das Bild wischen schubst die Luft an',
+        hintFan: 'Gebläse: bläst in Pfeilrichtung, auch ohne Wind · Pfeile unten drehen es',
+        hintRotor: 'Rotor: dreht sich und nimmt die Luft mit · Pfeile unten: Drehrichtung',
+        hintSink: 'Absaugung: zieht Luft ab, solange der Wind läuft',
+        hintChimney: 'Schornstein: stößt Rauch aus',
         hintErase: 'Auf ein Hindernis tippen, um es zu entfernen',
         hintRotate: 'Zwei Finger: drehen und Größe ändern',
         helpTitle: 'So funktioniert es',
@@ -165,7 +185,7 @@ export const STRINGS = {
             Luft wird als Strömungsfeld berechnet – direkt auf der Grafikkarte deines
             Geräts, ohne Server.</p>
             <ol>
-              <li><strong>Wind an</strong> startet die Strömung von links nach rechts.
+              <li>Der Schalter <strong>Wind</strong> startet die Strömung von links nach rechts.
               Die farbigen Rauchfäden zeigen, welchen Weg die Luft nimmt.</li>
               <li>Wähle ein <strong>Hindernis</strong> und tippe in die Strömung.
               Ziehen verschiebt es, der Radierer entfernt es. Das markierte
@@ -176,6 +196,12 @@ export const STRINGS = {
               <li>Unter <strong>Ansicht</strong> kannst du statt des Rauchs die
               Geschwindigkeit, die Wirbelstärke oder den Druck einfärben.</li>
             </ol>
+            <p><strong>Mit Funktion</strong>: Das <em>Gebläse</em> bläst selbst, auch bei
+            ausgeschaltetem Wind. Der <em>Rotor</em> ist ein drehender Zylinder – er
+            nimmt die Luft auf einer Seite mit und wird quer zur Strömung gedrückt
+            (Magnus-Effekt, wie beim angeschnittenen Ball). Die <em>Absaugung</em> zieht
+            Luft ab, der <em>Schornstein</em> stößt Rauch aus. Mit dem
+            <strong>Fingerwirbel</strong> schubst du die Luft selbst an.</p>
             <p>Probier die beiden Raum-Szenen aus: Mit nur einem Fenster passiert fast
             nichts – die Luft hat keinen Weg hinaus. Erst ein zweites Fenster auf der
             gegenüberliegenden Seite lüftet den Raum wirklich durch.</p>
@@ -198,7 +224,8 @@ export const STRINGS = {
         title: 'WirbelTouch',
         subtitle: 'Flow you can touch',
         tools: 'Tool',
-        toolStir: 'Stir',
+        toolStir: 'Finger swirl',
+        toolStirTitle: 'Finger swirl: push the air with your finger',
         toolCircle: 'Cylinder',
         toolSquare: 'Block',
         toolPlate: 'Plate',
@@ -206,6 +233,15 @@ export const STRINGS = {
         toolHill: 'Hill',
         toolBrush: 'Freehand',
         toolEraser: 'Eraser',
+        toolFan: 'Fan',
+        toolRotor: 'Rotor',
+        toolSink: 'Suction',
+        toolChimney: 'Chimney',
+        groupShapes: 'Obstacles',
+        groupDevices: 'With a function',
+        groupHand: 'By hand',
+        spinLeft: 'turns anticlockwise',
+        spinRight: 'turns clockwise',
         penWidth: 'Pen width',
         rotateLeft: 'Rotate left',
         rotateRight: 'Rotate right',
@@ -230,8 +266,10 @@ export const STRINGS = {
         infoVorticity: 'The coarse grid eats small eddies. This slider hands energy back to them \u2013 a trick, not a real physical term. Large values produce noise.',
         infoFade: 'How quickly the smoke dissolves. At 0 the lines stay visible until they leave the picture.',
         infoQuality: 'Fineness of the computational grid. Higher means smaller eddies but a lot more work \u2013 on a phone, prefer one step lower.',
-        windOn: 'Wind on',
-        windOff: 'Wind off',
+        windLabel: 'Wind',
+        windTitle: 'Switch the wind tunnel on or off',
+        switchOn: 'on',
+        switchOff: 'off',
         pause: 'Pause',
         play: 'Resume',
         resetFlow: 'Reset flow',
@@ -258,6 +296,10 @@ export const STRINGS = {
         sceneWindfarm: 'Wind farm',
         sceneBridge: 'Bridge deck',
         sceneStall: 'Stall',
+        sceneMagnus: 'Magnus effect',
+        sceneJet: 'Jet in a crosswind',
+        sceneChimney: 'Chimney by a tower',
+        sceneExtraction: 'Fume extraction',
         groupBasics: 'Basic shapes',
         groupCity: 'City',
         groupLand: 'Landscape',
@@ -334,7 +376,11 @@ export const STRINGS = {
         qualityHigh: 'high',
         qualityUltra: 'very high',
         hintPlace: 'Tap to place an obstacle · drag to move it',
-        hintStir: 'Drag to push the air around',
+        hintStir: 'Finger swirl: swipe across the picture to push the air',
+        hintFan: 'Fan: blows along its arrow, even with the wind off · arrows below turn it',
+        hintRotor: 'Rotor: spins and drags the air along · arrows below: direction',
+        hintSink: 'Suction: draws air away while the wind is on',
+        hintChimney: 'Chimney: puffs out smoke',
         hintErase: 'Tap an obstacle to remove it',
         hintRotate: 'Two fingers: rotate and resize',
         helpTitle: 'How it works',
@@ -343,7 +389,7 @@ export const STRINGS = {
             The air is solved as a real flow field – on your own graphics card, with
             no server involved.</p>
             <ol>
-              <li><strong>Wind on</strong> starts a steady flow from left to right.
+              <li>The <strong>Wind</strong> switch starts a steady flow from left to right.
               The coloured streak lines show the path the air takes.</li>
               <li>Pick an <strong>obstacle</strong> and tap into the flow. Drag to
               move it, use the eraser to take it out again. The highlighted one
@@ -354,6 +400,12 @@ export const STRINGS = {
               <li>Under <strong>View</strong> you can colour the field by speed,
               vorticity or pressure instead of smoke.</li>
             </ol>
+            <p><strong>With a function</strong>: the <em>fan</em> blows by itself, even
+            with the wind off. The <em>rotor</em> is a spinning cylinder - it drags the
+            air round on one side and is pushed across the stream (the Magnus effect,
+            as on a sliced ball). <em>Suction</em> draws air away, the <em>chimney</em>
+            puffs out smoke. With the <strong>finger swirl</strong> you push the air
+            yourself.</p>
             <p>Try the two room scenes: with a single window almost nothing happens -
             the air has no way out. Only a second window on the opposite side really
             flushes the room through.</p>

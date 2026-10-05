@@ -14,18 +14,29 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
 
 ## What you can do
 
-* **Wind on** – a steady flow, visualised with coloured smoke streak lines
+* **Wind switch** – a steady flow, visualised with coloured smoke streak lines
   injected at the inlet. The inflow can come **from any of the four sides** or
   be switched off entirely; switching it off spins the fan down over about a
   second and a half rather than sealing the tunnel around moving air.
-* **Obstacles** – cylinder, block, flat plate, airfoil, hill and a freehand
-  brush. Tap to place, drag to move. To remove one: drag it onto the bin, tap
+* **Obstacles** – cylinder, block, flat plate, airfoil (a cambered NACA 4412,
+  the section of countless wind tunnel photographs), hill and a freehand
+  brush. Tap to place, drag to move. Sizes are measured against the short side
+  of the screen, so a default obstacle leaves room for its wake on a portrait
+  phone as well. To remove one: drag it onto the bin, tap
   the bin while it is selected, or use the eraser.
 * **Rotate and resize** – with the arrows right below the tools, or with **two
   fingers** directly on an obstacle (rotate and pinch at once). Freehand
   strokes turn about their own centre of gravity. Whichever obstacle was last
   tapped or placed is highlighted: that is the one the size and rotation
-  controls act on.
+  controls act on. Angles count clockwise, so for the usual flow from the left
+  a positive angle is a positive angle of attack.
+* **Obstacles with a function** – a **fan** in a short duct that blows by
+  itself (even with the wind off), a spinning **rotor** that drags the air
+  round and gets pushed across the stream (Magnus effect; its arrows set the
+  sense of rotation), a **suction** vent that draws air away (only while the
+  tunnel is open - a sealed box cannot be emptied), and a **chimney** that
+  puffs out smoke of its own. Their solid parts go into the mask; what they do
+  to the air is a short list of drivers the solver applies every step.
 * **Medium** – *air* (wind around a building: brisk, with a turbulent wake) or
   *water* (a slow flume: a clean, regular vortex street). Both solve the same
   equations; what the presets change is the regime, i.e. roughly the Reynolds
@@ -34,16 +45,19 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   vortex street), two cylinders, airfoil, stall (the same wing at 6° and 26°),
   air brake, bridge deck, buildings, the Frankfurt skyline, street canyon,
   mountain range, wind farm (the downstream rotors sit in the wake of the
-  first), nozzle, slit. Two pairs are worth putting side by side:
+  first), nozzle, slit, and with devices: Magnus effect (a still and a
+  spinning cylinder), a jet in a crosswind, a chimney by a tower block
+  (downwash into its lee) and fume extraction. Two pairs are worth putting side by side:
   * **solid wall vs slatted fence** – same height; the wall throws a strong
     vortex and shelters only briefly, the fence bleeds air through and shelters
     much further downwind.
   * **one window vs cross-ventilation** – a room with a single opening barely
     exchanges any air, the same room with a window opposite flushes through.
 * **Views** – smoke, speed, vorticity or pressure.
-* **Stir** – push the air around by hand. It sits next to the flow commands
-  rather than among the obstacle tools, since it acts on the air, not on the
-  scenery.
+* **Finger swirl** – push the air around by hand. It is a tool like the
+  others (a mode for your finger), so it sits in the tool row under *by hand*,
+  with an icon of a fingertip and a swirl. The wind is a switch in the bottom
+  bar, with a sliding on/off knob, so the two no longer look alike.
 * **Help** has two tabs: a short explanation for visitors and a technical one
   covering the scheme, the grid, the boundary treatment and, explicitly, where
   the model stops being trustworthy.

@@ -52,40 +52,77 @@
 
   <div id="dock-body">
     <div id="tools" role="radiogroup" data-i18n-title="tools">
-      <button class="tool" type="button" data-tool="circle" data-i18n-title="toolCircle">
-        <svg data-icon="circle"></svg>
-        <span data-i18n="toolCircle"></span>
-      </button>
-      <button class="tool" type="button" data-tool="square" data-i18n-title="toolSquare">
-        <svg data-icon="square"></svg>
-        <span data-i18n="toolSquare"></span>
-      </button>
-      <button class="tool" type="button" data-tool="plate" data-i18n-title="toolPlate">
-        <svg data-icon="plate"></svg>
-        <span data-i18n="toolPlate"></span>
-      </button>
-      <button class="tool" type="button" data-tool="airfoil" data-i18n-title="toolAirfoil">
-        <svg data-icon="airfoil"></svg>
-        <span data-i18n="toolAirfoil"></span>
-      </button>
-      <button class="tool" type="button" data-tool="hill" data-i18n-title="toolHill">
-        <svg data-icon="hill"></svg>
-        <span data-i18n="toolHill"></span>
-      </button>
-      <button class="tool" type="button" data-tool="brush" data-i18n-title="toolBrush">
-        <svg data-icon="brush"></svg>
-        <span data-i18n="toolBrush"></span>
-      </button>
-      <button class="tool" type="button" data-tool="eraser" data-i18n-title="toolEraser">
-        <svg data-icon="eraser"></svg>
-        <span data-i18n="toolEraser"></span>
-      </button>
+      <div class="toolgroup" role="group" data-i18n-title="groupShapes">
+        <span class="groupcap" data-i18n="groupShapes"></span>
+        <div class="toolrow">
+          <button class="tool solid" type="button" data-tool="circle" data-i18n-title="toolCircle">
+            <svg data-icon="circle"></svg>
+            <span data-i18n="toolCircle"></span>
+          </button>
+          <button class="tool solid" type="button" data-tool="square" data-i18n-title="toolSquare">
+            <svg data-icon="square"></svg>
+            <span data-i18n="toolSquare"></span>
+          </button>
+          <button class="tool solid" type="button" data-tool="plate" data-i18n-title="toolPlate">
+            <svg data-icon="plate"></svg>
+            <span data-i18n="toolPlate"></span>
+          </button>
+          <button class="tool solid" type="button" data-tool="airfoil" data-i18n-title="toolAirfoil">
+            <svg data-icon="airfoil"></svg>
+            <span data-i18n="toolAirfoil"></span>
+          </button>
+          <button class="tool solid" type="button" data-tool="hill" data-i18n-title="toolHill">
+            <svg data-icon="hill"></svg>
+            <span data-i18n="toolHill"></span>
+          </button>
+          <button class="tool" type="button" data-tool="brush" data-i18n-title="toolBrush">
+            <svg data-icon="brush"></svg>
+            <span data-i18n="toolBrush"></span>
+          </button>
+        </div>
+      </div>
+      <span class="divider" aria-hidden="true"></span>
+      <div class="toolgroup" role="group" data-i18n-title="groupDevices">
+        <span class="groupcap" data-i18n="groupDevices"></span>
+        <div class="toolrow">
+          <button class="tool device" type="button" data-tool="fan" data-i18n-title="toolFan">
+            <svg data-icon="fan"></svg>
+            <span data-i18n="toolFan"></span>
+          </button>
+          <button class="tool device" type="button" data-tool="rotor" data-i18n-title="toolRotor">
+            <svg data-icon="rotor"></svg>
+            <span data-i18n="toolRotor"></span>
+          </button>
+          <button class="tool device" type="button" data-tool="sink" data-i18n-title="toolSink">
+            <svg data-icon="sink"></svg>
+            <span data-i18n="toolSink"></span>
+          </button>
+          <button class="tool device" type="button" data-tool="chimney" data-i18n-title="toolChimney">
+            <svg data-icon="chimney"></svg>
+            <span data-i18n="toolChimney"></span>
+          </button>
+        </div>
+      </div>
+      <span class="divider" aria-hidden="true"></span>
+      <div class="toolgroup" role="group" data-i18n-title="groupHand">
+        <span class="groupcap" data-i18n="groupHand"></span>
+        <div class="toolrow">
+          <button class="tool" type="button" data-tool="stir" data-i18n-title="toolStirTitle">
+            <svg data-icon="stir"></svg>
+            <span data-i18n="toolStir"></span>
+          </button>
+          <button class="tool" type="button" data-tool="eraser" data-i18n-title="toolEraser">
+            <svg data-icon="eraser"></svg>
+            <span data-i18n="toolEraser"></span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <div id="shapebar">
       <label class="dock-slider">
         <span id="dock-size-label" data-i18n="size"></span>
-        <input id="in-dock-size" type="range" min="2" max="30" step="0.5" value="11">
+        <input id="in-dock-size" type="range" min="2" max="30" step="0.5" value="7">
         <output id="out-dock-size"></output>
       </label>
       <div id="rotate-group" class="rotate">
@@ -100,15 +137,12 @@
     </div>
 
     <div id="actions">
-      <button class="tool" type="button" data-tool="stir" data-i18n-title="toolStir">
-        <svg data-icon="stir"></svg>
-        <span data-i18n="toolStir"></span>
+      <button id="btn-wind" class="action primary switch" type="button" aria-pressed="false" data-i18n-title="windTitle">
+        <svg data-icon="wind"></svg>
+        <span id="wind-label" data-i18n="windLabel"></span>
+        <i class="knob" aria-hidden="true"><b id="wind-state"></b></i>
       </button>
       <span class="divider" aria-hidden="true"></span>
-      <button id="btn-wind" class="action primary" type="button">
-        <svg data-icon="wind"></svg>
-        <span id="wind-label" data-i18n="windOn"></span>
-      </button>
       <button id="btn-pause" class="action" type="button">
         <svg class="icon-pause" data-icon="pause"></svg>
         <svg class="icon-play" data-icon="play"></svg>
@@ -150,6 +184,12 @@
         <option value="stall" data-i18n="sceneStall"></option>
         <option value="plate" data-i18n="scenePlate"></option>
         <option value="bridge" data-i18n="sceneBridge"></option>
+      </optgroup>
+      <optgroup data-i18n-label="groupDevices">
+        <option value="magnus" data-i18n="sceneMagnus"></option>
+        <option value="jet" data-i18n="sceneJet"></option>
+        <option value="chimney" data-i18n="sceneChimney"></option>
+        <option value="extraction" data-i18n="sceneExtraction"></option>
       </optgroup>
       <optgroup data-i18n-label="groupCity">
         <option value="building" data-i18n="sceneBuilding"></option>
