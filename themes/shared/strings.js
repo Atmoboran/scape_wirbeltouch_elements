@@ -16,24 +16,34 @@ export const STRINGS = {
         title: 'WirbelTouch',
         subtitle: 'Strömung zum Anfassen',
         tools: 'Werkzeug',
-        toolStir: 'Fingerwirbel',
-        toolStirTitle: 'Fingerwirbel: mit dem Finger Luft anschubsen',
         toolCircle: 'Zylinder',
         toolSquare: 'Quader',
         toolPlate: 'Platte',
         toolAirfoil: 'Tragfläche',
         toolHill: 'Berg',
         toolBrush: 'Freihand',
-        toolEraser: 'Radierer',
         toolFan: 'Gebläse',
         toolRotor: 'Rotor',
         toolSink: 'Absaugung',
         toolChimney: 'Schornstein',
         groupShapes: 'Hindernisse',
-        groupDevices: 'Mit Funktion',
-        groupHand: 'Hand',
-        spinLeft: 'dreht links herum',
-        spinRight: 'dreht rechts herum',
+        groupDevices: 'Windmacher',
+        groupDevicesTitle: 'Windmacher: Hindernisse, die selbst Luft bewegen',
+        paramPower: 'Stärke',
+        paramRhythm: 'Betrieb',
+        rhythmSteady: 'dauernd',
+        rhythmPulse: 'im Takt',
+        paramPeriod: 'Takt',
+        paramSpin: 'Drehsinn',
+        spinCw: 'rechts herum',
+        spinCcw: 'links herum',
+        angleEdit: 'Antippen und den Winkel genau eintippen',
+        deleteSelected: 'Entfernen',
+        done: 'Fertig',
+        resetAll: 'Neustart',
+        resetAllTitle: 'Alles auf den Anfang zurücksetzen',
+        resetConfirm: 'Sicher?',
+        resetConfirmHint: 'Nochmal auf Neustart tippen setzt alles zurück',
         penWidth: 'Stiftbreite',
         rotateLeft: 'Nach links drehen',
         rotateRight: 'Nach rechts drehen',
@@ -65,7 +75,7 @@ export const STRINGS = {
         pause: 'Pause',
         play: 'Weiter',
         resetFlow: 'Strömung neu',
-        clear: 'Alles löschen',
+        clear: 'Bild leeren',
         undo: 'Zurück',
         settings: 'Einstellungen',
         help: 'Hilfe',
@@ -101,7 +111,7 @@ export const STRINGS = {
         binLabel: 'Löschen',
         sceneRoomOne: 'Raum, ein Fenster',
         sceneRoomCross: 'Querlüftung',
-        dropToDelete: 'Ausgewähltes Hindernis hierher ziehen oder antippen',
+        dropToDelete: 'Hierher ziehen zum Löschen',
         helpTabBasic: 'Kurz erklärt',
         helpTabAdvanced: 'Erweiterte Erklärung',
         hintDrag: 'Hindernis in den Papierkorb ziehen löscht es',
@@ -161,7 +171,7 @@ export const STRINGS = {
         smokeLines: 'Fäden',
         smokeSheet: 'Fläche',
         windSpeed: 'Windgeschwindigkeit',
-        size: 'Größe des Hindernisses',
+        size: 'Größe',
         angle: 'Anstellwinkel',
         stripes: 'Anzahl Rauchfäden',
         vorticity: 'Wirbelverstärkung',
@@ -171,14 +181,13 @@ export const STRINGS = {
         qualityMid: 'mittel',
         qualityHigh: 'hoch',
         qualityUltra: 'sehr hoch',
-        hintPlace: 'Tippen: Hindernis setzen · Ziehen: verschieben',
-        hintStir: 'Fingerwirbel: über das Bild wischen schubst die Luft an',
-        hintFan: 'Gebläse: bläst in Pfeilrichtung, auch ohne Wind · Pfeile unten drehen es',
-        hintRotor: 'Rotor: dreht sich und nimmt die Luft mit · Pfeile unten: Drehrichtung',
+        hintFan: 'Gebläse: bläst in Pfeilrichtung, auch ohne Wind',
+        hintRotor: 'Rotor: dreht sich, reißt die Luft mit und lenkt die Strömung zur Seite ab',
         hintSink: 'Absaugung: zieht Luft ab, solange der Wind läuft',
         hintChimney: 'Schornstein: stößt Rauch aus',
-        hintErase: 'Auf ein Hindernis tippen, um es zu entfernen',
         hintRotate: 'Zwei Finger: drehen und Größe ändern',
+        hintHand: 'Wischen: Luft aufwirbeln · Hindernis antippen: auswählen, ziehen: verschieben',
+        hintArm: 'Ins Bild tippen: {tool} wird dort gesetzt',
         helpTitle: 'So funktioniert es',
         helpBody: `
             <p><strong>WirbelTouch</strong> ist ein kleiner Windkanal im Browser. Die
@@ -187,30 +196,35 @@ export const STRINGS = {
             <ol>
               <li>Der Schalter <strong>Wind</strong> startet die Strömung von links nach rechts.
               Die farbigen Rauchfäden zeigen, welchen Weg die Luft nimmt.</li>
-              <li>Wähle ein <strong>Hindernis</strong> und tippe in die Strömung.
-              Ziehen verschiebt es, der Radierer entfernt es. Das markierte
-              Hindernis ist das ausgewählte – Größe und Drehung wirken auf dieses.</li>
-              <li><strong>Drehen</strong> kannst du ein Hindernis mit den Pfeilen unter
-              den Werkzeugen oder mit zwei Fingern direkt im Bild – zwei Finger ändern
-              zugleich die Größe. Schau bei der Tragfläche, wann die Strömung abreißt.</li>
+              <li><strong>Wischen</strong> über das Bild wirbelt die Luft mit dem Finger auf.</li>
+              <li>Ein <strong>Hindernis</strong> setzt du so: unten antippen, dann ins Bild
+              tippen. Antippen wählt ein Hindernis aus, Ziehen verschiebt es. Für das
+              ausgewählte erscheinen unten seine Einstellungen: Größe, Winkel (auch zum
+              Eintippen) und Entfernen. Ein Tipp ins Leere hebt die Auswahl auf.</li>
+              <li><strong>Drehen</strong> geht auch mit zwei Fingern direkt im Bild – zwei
+              Finger ändern zugleich die Größe. Schau bei der Tragfläche, wann die
+              Strömung abreißt.</li>
               <li>Unter <strong>Ansicht</strong> kannst du statt des Rauchs die
               Geschwindigkeit, die Wirbelstärke oder den Druck einfärben.</li>
             </ol>
-            <p><strong>Mit Funktion</strong>: Das <em>Gebläse</em> bläst selbst, auch bei
-            ausgeschaltetem Wind. Der <em>Rotor</em> ist ein drehender Zylinder – er
-            nimmt die Luft auf einer Seite mit und wird quer zur Strömung gedrückt
-            (Magnus-Effekt, wie beim angeschnittenen Ball). Die <em>Absaugung</em> zieht
-            Luft ab, der <em>Schornstein</em> stößt Rauch aus. Mit dem
-            <strong>Fingerwirbel</strong> schubst du die Luft selbst an.</p>
+            <p><strong>Windmacher</strong> bewegen die Luft selbst. Das <em>Gebläse</em>
+            bläst auch bei ausgeschaltetem Wind. Der <em>Rotor</em> ist ein drehender
+            Zylinder: Er reißt die Luft auf einer Seite mit, bremst sie auf der anderen,
+            und die Strömung wird zur Seite gelenkt – der Magnus-Effekt, wie beim
+            angeschnittenen Ball. Die <em>Absaugung</em> zieht Luft ab, der
+            <em>Schornstein</em> stößt Rauch aus. Bei jedem lässt sich die Stärke
+            einstellen und ob er dauernd oder im Takt läuft.</p>
             <p>Probier die beiden Raum-Szenen aus: Mit nur einem Fenster passiert fast
             nichts – die Luft hat keinen Weg hinaus. Erst ein zweites Fenster auf der
             gegenüberliegenden Seite lüftet den Raum wirklich durch.</p>
             <p>Hinter einem runden Hindernis lösen sich abwechselnd Wirbel ab: die
             <em>Kármánsche Wirbelstraße</em>. Genau solche Wirbel verursachen das
             Brummen von Leitungen im Wind und die Böen hinter Gebäuden.</p>
-            <p>Tastatur: <kbd>Leertaste</kbd> Pause, <kbd>W</kbd> Wind,
-            <kbd>C</kbd> löschen, <kbd>R</kbd> Strömung neu, <kbd>1–4</kbd> Ansicht,
-            <kbd>Q</kbd>/<kbd>E</kbd> drehen.</p>`,
+            <p><strong>Neustart</strong> setzt alles auf den Anfang zurück.
+            Tastatur: <kbd>Leertaste</kbd> Pause, <kbd>W</kbd> Wind,
+            <kbd>C</kbd> Bild leeren, <kbd>R</kbd> Strömung neu, <kbd>1–4</kbd> Ansicht,
+            <kbd>Q</kbd>/<kbd>E</kbd> drehen, <kbd>Entf</kbd> entfernen,
+            <kbd>Esc</kbd> Auswahl aufheben.</p>`,
         close: 'Schließen',
         noWebGL: 'Dieses Gerät kann WebGL nicht darstellen – die Simulation lässt sich leider nicht starten.'
     },
@@ -224,24 +238,34 @@ export const STRINGS = {
         title: 'WirbelTouch',
         subtitle: 'Flow you can touch',
         tools: 'Tool',
-        toolStir: 'Finger swirl',
-        toolStirTitle: 'Finger swirl: push the air with your finger',
         toolCircle: 'Cylinder',
         toolSquare: 'Block',
         toolPlate: 'Plate',
         toolAirfoil: 'Airfoil',
         toolHill: 'Hill',
         toolBrush: 'Freehand',
-        toolEraser: 'Eraser',
         toolFan: 'Fan',
         toolRotor: 'Rotor',
         toolSink: 'Suction',
         toolChimney: 'Chimney',
         groupShapes: 'Obstacles',
-        groupDevices: 'With a function',
-        groupHand: 'By hand',
-        spinLeft: 'turns anticlockwise',
-        spinRight: 'turns clockwise',
+        groupDevices: 'Air movers',
+        groupDevicesTitle: 'Air movers: obstacles that move air themselves',
+        paramPower: 'Strength',
+        paramRhythm: 'Running',
+        rhythmSteady: 'steady',
+        rhythmPulse: 'pulsed',
+        paramPeriod: 'Interval',
+        paramSpin: 'Turning',
+        spinCw: 'clockwise',
+        spinCcw: 'anticlockwise',
+        angleEdit: 'Tap to type an exact angle',
+        deleteSelected: 'Remove',
+        done: 'Done',
+        resetAll: 'Start over',
+        resetAllTitle: 'Reset everything to the beginning',
+        resetConfirm: 'Sure?',
+        resetConfirmHint: 'Tap Start over again to reset everything',
         penWidth: 'Pen width',
         rotateLeft: 'Rotate left',
         rotateRight: 'Rotate right',
@@ -273,7 +297,7 @@ export const STRINGS = {
         pause: 'Pause',
         play: 'Resume',
         resetFlow: 'Reset flow',
-        clear: 'Clear all',
+        clear: 'Clear picture',
         undo: 'Undo',
         settings: 'Settings',
         help: 'Help',
@@ -309,7 +333,7 @@ export const STRINGS = {
         binLabel: 'Delete',
         sceneRoomOne: 'Room, one window',
         sceneRoomCross: 'Cross ventilation',
-        dropToDelete: 'Drag the selected obstacle here, or tap',
+        dropToDelete: 'Drag here to delete',
         helpTabBasic: 'In short',
         helpTabAdvanced: 'Technical details',
         hintDrag: 'Drag an obstacle onto the bin to delete it',
@@ -365,7 +389,7 @@ export const STRINGS = {
         smokeLines: 'Streak lines',
         smokeSheet: 'Sheet',
         windSpeed: 'Wind speed',
-        size: 'Obstacle size',
+        size: 'Size',
         angle: 'Angle of attack',
         stripes: 'Number of streak lines',
         vorticity: 'Vortex boost',
@@ -375,14 +399,13 @@ export const STRINGS = {
         qualityMid: 'medium',
         qualityHigh: 'high',
         qualityUltra: 'very high',
-        hintPlace: 'Tap to place an obstacle · drag to move it',
-        hintStir: 'Finger swirl: swipe across the picture to push the air',
-        hintFan: 'Fan: blows along its arrow, even with the wind off · arrows below turn it',
-        hintRotor: 'Rotor: spins and drags the air along · arrows below: direction',
+        hintFan: 'Fan: blows along its arrow, even with the wind off',
+        hintRotor: 'Rotor: spins, drags the air along and turns the stream aside',
         hintSink: 'Suction: draws air away while the wind is on',
         hintChimney: 'Chimney: puffs out smoke',
-        hintErase: 'Tap an obstacle to remove it',
         hintRotate: 'Two fingers: rotate and resize',
+        hintHand: 'Swipe: stir the air · tap an obstacle to select it, drag to move it',
+        hintArm: 'Tap the picture to place it there: {tool}',
         helpTitle: 'How it works',
         helpBody: `
             <p><strong>WirbelTouch</strong> is a small wind tunnel in your browser.
@@ -391,30 +414,34 @@ export const STRINGS = {
             <ol>
               <li>The <strong>Wind</strong> switch starts a steady flow from left to right.
               The coloured streak lines show the path the air takes.</li>
-              <li>Pick an <strong>obstacle</strong> and tap into the flow. Drag to
-              move it, use the eraser to take it out again. The highlighted one
-              is the selected one - size and rotation act on that.</li>
-              <li><strong>Rotate</strong> an obstacle with the arrows below the tools,
-              or with two fingers directly on it – two fingers resize it at the same
-              time. On the airfoil, watch for the moment the flow separates.</li>
+              <li><strong>Swipe</strong> across the picture to stir the air with your finger.</li>
+              <li>To place an <strong>obstacle</strong>, tap it below, then tap into the
+              picture. Tapping an obstacle selects it, dragging moves it. The selected
+              one shows its settings below: size, angle (which you can also type in)
+              and remove. A tap on empty space lets go of it.</li>
+              <li>You can also <strong>rotate</strong> with two fingers right in the
+              picture – two fingers resize at the same time. On the airfoil, watch for
+              the moment the flow separates.</li>
               <li>Under <strong>View</strong> you can colour the field by speed,
               vorticity or pressure instead of smoke.</li>
             </ol>
-            <p><strong>With a function</strong>: the <em>fan</em> blows by itself, even
-            with the wind off. The <em>rotor</em> is a spinning cylinder - it drags the
-            air round on one side and is pushed across the stream (the Magnus effect,
-            as on a sliced ball). <em>Suction</em> draws air away, the <em>chimney</em>
-            puffs out smoke. With the <strong>finger swirl</strong> you push the air
-            yourself.</p>
+            <p><strong>Air movers</strong> move the air themselves. The <em>fan</em> blows
+            even with the wind off. The <em>rotor</em> is a spinning cylinder: it drags
+            the air along on one side, holds it back on the other, and the stream is
+            turned aside – the Magnus effect, as on a sliced ball. <em>Suction</em> draws
+            air away, the <em>chimney</em> puffs out smoke. Each can be set stronger or
+            weaker, and to run steadily or in pulses.</p>
             <p>Try the two room scenes: with a single window almost nothing happens -
             the air has no way out. Only a second window on the opposite side really
             flushes the room through.</p>
             <p>Behind a round obstacle vortices peel off alternately: the
             <em>Kármán vortex street</em>. The same vortices make power lines hum in
             the wind and cause the gusts you feel behind buildings.</p>
-            <p>Keyboard: <kbd>Space</kbd> pause, <kbd>W</kbd> wind,
+            <p><strong>Start over</strong> puts everything back to the beginning.
+            Keyboard: <kbd>Space</kbd> pause, <kbd>W</kbd> wind,
             <kbd>C</kbd> clear, <kbd>R</kbd> reset flow, <kbd>1–4</kbd> view,
-            <kbd>Q</kbd>/<kbd>E</kbd> rotate.</p>`,
+            <kbd>Q</kbd>/<kbd>E</kbd> rotate, <kbd>Del</kbd> remove,
+            <kbd>Esc</kbd> deselect.</p>`,
         close: 'Close',
         noWebGL: 'This device cannot run WebGL, so the simulation cannot be started.'
     }

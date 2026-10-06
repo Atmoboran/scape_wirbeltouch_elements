@@ -18,25 +18,38 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   injected at the inlet. The inflow can come **from any of the four sides** or
   be switched off entirely; switching it off spins the fan down over about a
   second and a half rather than sealing the tunnel around moving air.
+* **The hand** – by default your finger is in the air: **swiping stirs it**,
+  tapping an obstacle selects it, dragging moves it, and a tap on empty space
+  lets go of the selection. Nothing has to be switched on to stir, and no
+  selection can get in the way of it.
+* **Placing** – a tap on a tool in the palette arms it, the next tap into the
+  picture places one, and the hand is back. Every new obstacle starts at 0°.
+  Tapping an armed tool again puts it away.
 * **Obstacles** – cylinder, block, flat plate, airfoil (a cambered NACA 4412,
   the section of countless wind tunnel photographs), hill and a freehand
-  brush. Tap to place, drag to move. Sizes are measured against the short side
-  of the screen, so a default obstacle leaves room for its wake on a portrait
-  phone as well. To remove one: drag it onto the bin, tap
-  the bin while it is selected, or use the eraser.
-* **Rotate and resize** – with the arrows right below the tools, or with **two
-  fingers** directly on an obstacle (rotate and pinch at once). Freehand
-  strokes turn about their own centre of gravity. Whichever obstacle was last
-  tapped or placed is highlighted: that is the one the size and rotation
-  controls act on. Angles count clockwise, so for the usual flow from the left
-  a positive angle is a positive angle of attack.
-* **Obstacles with a function** – a **fan** in a short duct that blows by
-  itself (even with the wind off), a spinning **rotor** that drags the air
-  round and gets pushed across the stream (Magnus effect; its arrows set the
-  sense of rotation), a **suction** vent that draws air away (only while the
-  tunnel is open - a sealed box cannot be emptied), and a **chimney** that
-  puffs out smoke of its own. Their solid parts go into the mask; what they do
-  to the air is a short list of drivers the solver applies every step.
+  brush. Sizes are measured against the short side of the screen, so a
+  default obstacle leaves room for its wake on a portrait phone as well.
+* **Inspector** – the selected obstacle shows its settings in a bar between
+  palette and buttons: size, angle (arrows in 15° steps, or tap the number and
+  type it to the degree), the settings of an air mover, remove and done.
+  **Two fingers** on an obstacle rotate and resize it at once. Freehand
+  strokes turn about their own centre of gravity. Angles count clockwise, so
+  for the usual flow from the left a positive angle is a positive angle of
+  attack. To remove an obstacle: the bin in the inspector, or drag it onto the
+  bin that appears while dragging.
+* **Air movers** (*Windmacher*) – obstacles that move air themselves: a
+  **fan** in a short duct that blows by itself (even with the wind off), a
+  spinning **rotor** that drags the air round with its surface – faster on
+  one side, held back on the other – so the stream is turned aside and the
+  rotor pushed across it (Magnus effect, as on a Flettner ship or a sliced
+  ball), a **suction** vent that draws air away (only while the tunnel is open
+  – a sealed box cannot be emptied), and a **chimney** that puffs out smoke of
+  its own. Each has a **strength**, and runs **steadily or pulsed** with a
+  set interval; the rotor also has its sense of rotation. Their solid parts go
+  into the mask; what they do to the air is a short list of drivers the solver
+  applies every step. The settings are declared per device in `DEVICES`
+  (`js/obstacles.js`) and the inspector builds its controls from that list, so
+  a new setting or a new air mover needs no UI code.
 * **Medium** – *air* (wind around a building: brisk, with a turbulent wake) or
   *water* (a slow flume: a clean, regular vortex street). Both solve the same
   equations; what the presets change is the regime, i.e. roughly the Reynolds
@@ -54,10 +67,9 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   * **one window vs cross-ventilation** – a room with a single opening barely
     exchanges any air, the same room with a window opposite flushes through.
 * **Views** – smoke, speed, vorticity or pressure.
-* **Finger swirl** – push the air around by hand. It is a tool like the
-  others (a mode for your finger), so it sits in the tool row under *by hand*,
-  with an icon of a fingertip and a swirl. The wind is a switch in the bottom
-  bar, with a sliding on/off knob, so the two no longer look alike.
+* **Start over** – a button that puts everything back to the beginning:
+  scene, medium, view, wind, every setting (the language stays). It asks for
+  a second tap within three seconds, so a stray touch does no harm.
 * **Help** has two tabs: a short explanation for visitors and a technical one
   covering the scheme, the grid, the boundary treatment and, explicitly, where
   the model stops being trustworthy.
@@ -65,12 +77,12 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   explanation of what it does and what it means physically.
 * German / English interface, touch and mouse, keyboard shortcuts
   (`Space` pause, `W` wind, `C` clear, `R` reset flow, `1`–`4` view,
-  `Q`/`E` rotate).
+  `Q`/`E` rotate, `Del` remove, `Esc` deselect).
 * Phone-friendly: the whole tool dock collapses to a single bar, the tool row
-  scrolls sideways, and the size/rotate controls sit next to the tools rather
-  than in the settings panel.
-* After 4 minutes without interaction the exhibit resets itself to the default
-  scene (`IDLE_RESET_MS` in `js/app.js`).
+  scrolls sideways, and the inspector sits next to the tools rather than in
+  the settings panel.
+* After 4 minutes without interaction the exhibit starts over by itself
+  (`IDLE_RESET_MS` in `js/app.js`).
 
 ## Design and texts
 
@@ -97,8 +109,13 @@ Stable-fluids scheme per frame:
 
 1. wind-tunnel forcing (velocity nudged to the free stream in an inlet band on
    whichever edge the flow comes from, weak sponge at the outlet, plus a
-   whisper of unsteadiness that lets vortex shedding start),
-2. vorticity confinement (re-sharpens eddies the coarse grid would smear),
+   whisper of unsteadiness that lets vortex shedding start – only for a few
+   seconds after the wind starts or an obstacle is put down, then it fades,
+   so an empty tunnel settles into a steady stream),
+2. vorticity confinement (re-sharpens eddies the coarse grid would smear –
+   only where the vorticity stands clear of the numerical noise, a floor that
+   scales with the wind speed; without it, confinement grows the noise of the
+   free stream into small eddies that make every smoke line wobble),
 3. projection: divergence → pressure solve → gradient subtraction,
 4. semi-Lagrangian advection of velocity and smoke.
 

@@ -21,7 +21,6 @@ export const ICONS = {
     airfoil: '<path d="M2.5 12.2L2.6 11.6L3.1 11.1L3.8 10.5L4.9 10L6.1 9.7L7.5 9.5L9.1 9.5L10.8 9.8L12.4 10.2L14 10.7L15.6 11.3L17.1 11.9L18.3 12.6L19.5 13.2L20.3 13.7L21 14.1L21.5 14.5L20.9 14.4L19.3 14.3L16.7 14.1L13.6 13.9L10.3 13.7L7.2 13.6L4.7 13.4L3.1 13L2.6 12.6Z"/>',
     hill: '<path d="M3 19 12 5l9 14Z"/>',
     brush: '<path d="M4 20c2.5.4 4.2-.6 5-2.6M17.6 3.9 20 6.3 9.6 16.8l-3.4 1 1-3.4Z"/>',
-    eraser: '<path d="M8.5 19h11M4.4 15.2 9 19.6l10-10-4.6-4.6Z"/>',
     rotateLeft: '<path d="M4.5 12a7.5 7.5 0 1 1 2.2 5.3"/><path d="M4.5 7.2v4.9h4.9"/>',
     rotateRight: '<path d="M19.5 12a7.5 7.5 0 1 0-2.2 5.3"/><path d="M19.5 7.2v4.9h-4.9"/>',
 
@@ -32,11 +31,11 @@ export const ICONS = {
     chimney: '<path d="M7.5 21.5l1.2-11.5h4.6l1.2 11.5Z"/><path d="M8.6 12.2h4.8"/><path d="M11 7.5c.3-2.2 2.4-2.5 4-2.7 1.6-.2 3-.9 3.6-2.6"/>',
 
     // flow commands
-    // a fingertip with a swirl round it: you set the air moving yourself
-    stir: '<circle class="fill" cx="12" cy="12" r="2.3"/><path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M13.98 6.34 16.95 7.05 16.24 4.08"/>',
     wind: '<path d="M3 8h11.2a2.9 2.9 0 1 0-2.9-2.9"/><path d="M3 12.5h14.6a2.9 2.9 0 1 1-2.9 2.9"/><path d="M3 17h7.5"/>',
     pause: '<path d="M9 5v14M15 5v14"/>',
     play: '<path d="M7.5 4.8v14.4L19.5 12Z"/>',
     reset: '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4.5h-4.5"/>',
+    // start over: the power symbol, everything back to the beginning
+    resetAll: '<path d="M12 3.5v7.5"/><path d="M7 6.4a7.6 7.6 0 1 0 10 0"/>',
     undo: '<path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H9"/><path d="M8 4.5 3.5 9 8 13.5"/>'
 };

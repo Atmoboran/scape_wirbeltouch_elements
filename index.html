@@ -37,7 +37,7 @@
   </div>
 </header>
 
-<p id="hint" class="hint" data-i18n="hintPlace"></p>
+<p id="hint" class="hint" data-i18n="hintHand"></p>
 
 <button id="trash" type="button" hidden data-i18n-title="dropToDelete">
   <svg data-icon="bin"></svg>
@@ -82,7 +82,7 @@
         </div>
       </div>
       <span class="divider" aria-hidden="true"></span>
-      <div class="toolgroup" role="group" data-i18n-title="groupDevices">
+      <div class="toolgroup" role="group" data-i18n-title="groupDevicesTitle">
         <span class="groupcap" data-i18n="groupDevices"></span>
         <div class="toolrow">
           <button class="tool device" type="button" data-tool="fan" data-i18n-title="toolFan">
@@ -103,37 +103,36 @@
           </button>
         </div>
       </div>
-      <span class="divider" aria-hidden="true"></span>
-      <div class="toolgroup" role="group" data-i18n-title="groupHand">
-        <span class="groupcap" data-i18n="groupHand"></span>
-        <div class="toolrow">
-          <button class="tool" type="button" data-tool="stir" data-i18n-title="toolStirTitle">
-            <svg data-icon="stir"></svg>
-            <span data-i18n="toolStir"></span>
-          </button>
-          <button class="tool" type="button" data-tool="eraser" data-i18n-title="toolEraser">
-            <svg data-icon="eraser"></svg>
-            <span data-i18n="toolEraser"></span>
-          </button>
-        </div>
-      </div>
     </div>
 
-    <div id="shapebar">
-      <label class="dock-slider">
-        <span id="dock-size-label" data-i18n="size"></span>
-        <input id="in-dock-size" type="range" min="2" max="30" step="0.5" value="7">
-        <output id="out-dock-size"></output>
+    <!-- settings of the selected obstacle; device settings are built from
+         DEVICES in js/obstacles.js -->
+    <div id="inspector" hidden>
+      <span id="insp-title" class="insp-title"></span>
+      <label class="dock-slider insp-field">
+        <span id="insp-size-label" data-i18n="size"></span>
+        <input id="in-size" type="range" min="2" max="30" step="0.5" value="7">
+        <output id="out-size"></output>
       </label>
-      <div id="rotate-group" class="rotate">
+      <div id="rotate-group" class="rotate insp-field">
         <button id="btn-rot-left" class="chip" type="button" data-i18n-title="rotateLeft">
           <svg data-icon="rotateLeft"></svg>
         </button>
-        <output id="out-dock-angle" data-i18n-title="angle"></output>
+        <label class="angle-edit" data-i18n-title="angleEdit">
+          <input id="in-angle" type="number" inputmode="numeric" min="-180" max="180" step="1" value="0">
+          <span aria-hidden="true">°</span>
+        </label>
         <button id="btn-rot-right" class="chip" type="button" data-i18n-title="rotateRight">
           <svg data-icon="rotateRight"></svg>
         </button>
       </div>
+      <div id="insp-params" class="insp-params"></div>
+      <button id="btn-delete" class="chip insp-delete" type="button" data-i18n-title="deleteSelected">
+        <svg data-icon="bin"></svg>
+      </button>
+      <button id="btn-done" class="chip insp-done" type="button" data-i18n-title="done">
+        <svg data-icon="close"></svg>
+      </button>
     </div>
 
     <div id="actions">
@@ -159,6 +158,11 @@
       <button id="btn-clear" class="action" type="button">
         <svg data-icon="bin"></svg>
         <span data-i18n="clear"></span>
+      </button>
+      <span class="divider" aria-hidden="true"></span>
+      <button id="btn-reset-all" class="action" type="button" data-i18n-title="resetAllTitle">
+        <svg data-icon="resetAll"></svg>
+        <span id="reset-all-label" data-i18n="resetAll"></span>
       </button>
     </div>
   </div>

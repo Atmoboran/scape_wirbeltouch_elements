@@ -1,8 +1,14 @@
 // Wiring: canvas sizing, touch/mouse input, obstacle placement, UI controls.
 // The look and the copy come from the theme (js/theme.js, themes/<name>/).
+//
+// How the hand works: by default a finger is in the air - swiping stirs it,
+// tapping an obstacle selects it, dragging moves it. A tool from the palette
+// is "armed" by a tap; the next tap into the picture places one, and the hand
+// is back. The selected obstacle shows its settings in the inspector; a tap
+// on empty space lets go of it.
 
 import { FluidSimulation } from './simulation.js';
-import { ObstacleField, makeShape, PRESETS, centroid, ROTATABLE } from './obstacles.js';
+import { ObstacleField, makeShape, PRESETS, centroid, ROTATABLE, DEVICES } from './obstacles.js';
 import { applyLanguage } from './i18n.js';
 import { loadTheme, paintSwatches } from './theme.js';
 
@@ -50,7 +56,11 @@ const DIRECTIONS = {
 const MAX_PIXELS = 4.2e6;      // keeps 4K screens and weak GPUs civil
 const IDLE_RESET_MS = 4 * 60 * 1000;
 const DEFAULT_SCENE = 'cylinder';
+const DEFAULT_SIZE = 7;        // new obstacles: radius, per cent of the short side
+const DEFAULT_PEN = 2;         // freehand pen half width, per cent of the short side
+const DEFAULT_QUALITY = 2;
 const ROTATE_STEP = 15;
+const CONFIRM_MS = 3000;       // the start-over button waits this long for a second tap
 const SPIN_DOWN_S = 1.6;       // how long the fan takes to run out
 const SPIN_DOWN_RATE = 2.6;    // 1/s, uniform slow-down over that time
 const SETTLE_S = 0.7;          // keep slowing after the fan is off, so almost
@@ -68,20 +78,40 @@ const browserLang = (navigator.language || '').toLowerCase().slice(0, 2);
 
 const state = {
     lang: STRINGS[browserLang] ? browserLang : LANGS[0],
-    tool: 'circle',
-    size: 7,           // obstacle radius, per cent of the short side
-    pen: 2,            // freehand pen half width, per cent of the short side
-    angle: 0,
-    angles: { airfoil: 8 },   // the last angle used with each tool
-    spin: -1,          // sense of rotation for new rotors, -1 clockwise
-    quality: 2,
+    armed: null,       // the palette tool the next tap places, or null: the hand
+    selected: null,    // the obstacle the inspector acts on
+    size: DEFAULT_SIZE,
+    pen: DEFAULT_PEN,
+    quality: DEFAULT_QUALITY,
     medium: 'air',
     dirKey: 'right',
-    selected: null,
     windOn: false,
     settle: 0,
     overlayDirty: true,
     lastInteraction: performance.now()
+};
+
+// string keys naming each kind of obstacle
+const TYPE_LABEL = {
+    circle: 'toolCircle',
+    square: 'toolSquare',
+    box: 'toolSquare',
+    plate: 'toolPlate',
+    airfoil: 'toolAirfoil',
+    hill: 'toolHill',
+    brush: 'toolBrush',
+    fan: 'toolFan',
+    rotor: 'toolRotor',
+    sink: 'toolSink',
+    chimney: 'toolChimney'
+};
+
+// what a device does, said once when it is placed
+const DEVICE_HINTS = {
+    fan: 'hintFan',
+    rotor: 'hintRotor',
+    sink: 'hintSink',
+    chimney: 'hintChimney'
 };
 
 let dict = STRINGS[state.lang];
@@ -138,8 +168,8 @@ function localPos (event) {
     };
 }
 
-function isShapeTool () {
-    return state.tool !== 'stir' && state.tool !== 'eraser';
+function touched () {
+    state.lastInteraction = performance.now();
 }
 
 function markObstaclesChanged () {
@@ -147,18 +177,21 @@ function markObstaclesChanged () {
     state.overlayDirty = true;
 }
 
+function hitAt (p) {
+    return field.hitTest(octx, p.x, p.y, overlay.width, overlay.height);
+}
+
 /* ------------------------------------------------------- drag to the bin */
 
 const trashEl = document.getElementById('trash');
 let trashHintShown = false;
 
-// The bin is there whenever it has something to act on: while an obstacle is
-// being dragged, and while one is selected - then a tap on it is enough.
+// The bin shows up while an obstacle is being dragged: drop it there to
+// delete it.
 function refreshTrash () {
     let dragging = false;
     pointers.forEach(e => { if (draggingShape(e.mode)) dragging = true; });
-    const want = dragging || (isShapeTool() && state.selected != null);
-    if (want) {
+    if (dragging) {
         if (!trashHintShown) { trashHintShown = true; showHint('hintDrag'); }
         trashEl.hidden = false;
         // let the browser lay it out before the transition starts
@@ -172,10 +205,11 @@ function refreshTrash () {
 function deleteSelected () {
     if (!state.selected) return;
     field.remove(state.selected);
-    state.selected = null;
+    select(null);
     markObstaclesChanged();
+    if (sim) sim.kick();
     refreshTrash();
-    state.lastInteraction = performance.now();
+    touched();
 }
 
 trashEl.addEventListener('click', deleteSelected);
@@ -194,62 +228,60 @@ function onPointerDown (event) {
     if (!sim) return;
     event.preventDefault();
     try { overlay.setPointerCapture(event.pointerId); } catch (e) { /* synthetic events */ }
-    state.lastInteraction = performance.now();
+    touched();
     const p = localPos(event);
     const entry = { x: p.x, y: p.y, mode: 'stir', shape: null, grab: { x: 0, y: 0 }, color: randomColor() };
 
-    // A second finger turns the touch into a rotate / resize gesture instead of
-    // dropping another obstacle.
-    if (pointers.size > 0 && isShapeTool()) {
+    // A second finger on an obstacle, or while the first one holds one, turns
+    // the touch into a rotate / resize gesture.
+    if (pointers.size > 0) {
         const others = Array.from(pointers.values());
         const anchor = others[others.length - 1];
-        const target = field.hitTest(octx, p.x, p.y, overlay.width, overlay.height) ||
-            anchor.shape || state.selected;
+        const target = hitAt(p) || anchor.shape;
         if (target) {
             entry.mode = 'gesture';
             entry.shape = target;
             anchor.mode = 'gesture';
             anchor.shape = target;
-            state.selected = target;
-            state.overlayDirty = true;
+            select(target);
             refreshTrash();
             startGesture(target, anchor, p);
             pointers.set(event.pointerId, entry);
-            syncShapeControls(target);
             showHint('hintRotate');
             return;
         }
     }
 
-    if (state.tool === 'stir') {
-        sim.splat(p.x, 1 - p.y, 0, 0, entry.color);
-    } else if (state.tool === 'eraser') {
-        entry.mode = 'erase';
-        eraseAt(p);
+    if (state.armed) {
+        // a tool from the palette is waiting: this tap places it, at 0°
+        const type = state.armed;
+        let shape;
+        if (type === 'brush') {
+            shape = makeShape('brush', p.x, p.y, state.pen / 100, 0);
+            shape.points = [{ x: p.x, y: p.y }];
+            entry.mode = 'brush';
+        } else {
+            shape = makeShape(type, p.x, p.y, state.size / 100, 0);
+            entry.mode = 'move';
+        }
+        field.add(shape);
+        entry.shape = shape;
+        setArmed(null);
+        select(shape);
+        markObstaclesChanged();
+        if (DEVICE_HINTS[type]) showHint(DEVICE_HINTS[type]);
     } else {
-        const hit = field.hitTest(octx, p.x, p.y, overlay.width, overlay.height);
+        const hit = hitAt(p);
         if (hit) {
             entry.mode = 'move';
             entry.shape = hit;
             entry.grab = { x: hit.x - p.x, y: hit.y - p.y };
-            state.selected = hit;
-            syncShapeControls(hit);
-        } else if (state.tool === 'brush') {
-            const shape = makeShape('brush', p.x, p.y, state.pen / 100, 0);
-            shape.points = [{ x: p.x, y: p.y }];
-            field.add(shape);
-            entry.mode = 'brush';
-            entry.shape = shape;
-            state.selected = shape;
+            select(hit);
         } else {
-            const shape = makeShape(state.tool, p.x, p.y, state.size / 100, state.angle);
-            if (shape.type === 'rotor') shape.spin = state.spin;
-            field.add(shape);
-            entry.mode = 'move';
-            entry.shape = shape;
-            state.selected = shape;
+            // empty space: let go of the selection and stir the air
+            select(null);
+            sim.splat(p.x, 1 - p.y, 0, 0, entry.color);
         }
-        markObstaclesChanged();
     }
     pointers.set(event.pointerId, entry);
     refreshTrash();
@@ -259,7 +291,7 @@ function onPointerMove (event) {
     const entry = pointers.get(event.pointerId);
     if (!entry || !sim) return;
     event.preventDefault();
-    state.lastInteraction = performance.now();
+    touched();
     const p = localPos(event);
     const prevX = entry.x;
     const prevY = entry.y;
@@ -275,8 +307,6 @@ function onPointerMove (event) {
         const dx = (p.x - prevX) * sim.config.SPLAT_FORCE;
         const dy = -(p.y - prevY) * sim.config.SPLAT_FORCE;
         if (dx !== 0 || dy !== 0) sim.splat(p.x, 1 - p.y, dx, dy, entry.color);
-    } else if (entry.mode === 'erase') {
-        eraseAt(p);
     } else if (entry.mode === 'move' && entry.shape) {
         entry.shape.x = clamp01(p.x + entry.grab.x);
         entry.shape.y = clamp01(p.y + entry.grab.y);
@@ -297,10 +327,13 @@ function onPointerUp (event) {
     const entry = pointers.get(event.pointerId);
     if (entry && draggingShape(entry.mode) && entry.shape &&
         overTrash(event.clientX, event.clientY)) {
-        if (state.selected === entry.shape) state.selected = null;
+        if (state.selected === entry.shape) select(null);
         field.remove(entry.shape);
         markObstaclesChanged();
     }
+    // an obstacle put down somewhere new: nudge the inflow, so a symmetric
+    // wake gets going
+    if (entry && entry.shape && entry.mode !== 'stir' && sim) sim.kick();
 
     if (entry && entry.mode === 'gesture') {
         gesture = null;
@@ -312,7 +345,7 @@ function onPointerUp (event) {
         if (overlay.hasPointerCapture(event.pointerId)) overlay.releasePointerCapture(event.pointerId);
     } catch (e) { /* ignore */ }
     refreshTrash();
-    state.lastInteraction = performance.now();
+    touched();
 }
 
 /* ---- two finger rotate and resize ---------------------------------------- */
@@ -367,7 +400,7 @@ function applyGesture (a, b) {
         s.y = clamp01(gesture.baseY + dy);
     }
     markObstaclesChanged();
-    syncShapeControls(s);
+    syncInspector();
 }
 
 function wrapAngle (deg) {
@@ -375,16 +408,6 @@ function wrapAngle (deg) {
     if (a > 180) a -= 360;
     if (a < -180) a += 360;
     return a;
-}
-
-function eraseAt (p) {
-    const hit = field.hitTest(octx, p.x, p.y, overlay.width, overlay.height);
-    if (hit) {
-        if (state.selected === hit) state.selected = null;
-        field.remove(hit);
-        markObstaclesChanged();
-        refreshTrash();
-    }
 }
 
 // Dye for one stir stroke: a colour from the theme's stir palette, or a random
@@ -426,28 +449,24 @@ function setPressed (nodes, matcher) {
     nodes.forEach(node => node.setAttribute('aria-pressed', matcher(node) ? 'true' : 'false'));
 }
 
-const TOOL_HINTS = {
-    stir: 'hintStir',
-    eraser: 'hintErase',
-    fan: 'hintFan',
-    rotor: 'hintRotor',
-    sink: 'hintSink',
-    chimney: 'hintChimney'
-};
-
-const toolButtons = Array.from(document.querySelectorAll('.tool'));
+// The palette: a tap arms a tool, a second tap on it puts it away again.
+const toolButtons = Array.from(document.querySelectorAll('#tools .tool'));
 toolButtons.forEach(btn => {
     btn.addEventListener('click', () => {
-        state.tool = btn.dataset.tool;
-        state.angle = state.angles[state.tool] || 0;
-        setPressed(toolButtons, n => n.dataset.tool === state.tool);
-        state.overlayDirty = true;
-        updateShapeBar();
-        refreshTrash();
-        showHint(TOOL_HINTS[state.tool] || 'hintPlace');
-        state.lastInteraction = performance.now();
+        setArmed(state.armed === btn.dataset.tool ? null : btn.dataset.tool);
+        touched();
     });
 });
+
+function setArmed (type) {
+    state.armed = type || null;
+    setPressed(toolButtons, n => n.dataset.tool === state.armed);
+    document.body.classList.toggle('placing', !!state.armed);
+    if (state.armed) {
+        select(null);
+        showHint('hintArm', { tool: dict[TYPE_LABEL[state.armed]] || '' });
+    }
+}
 
 const sceneSelect = el('scene-select');
 sceneSelect.addEventListener('change', () => {
@@ -469,7 +488,7 @@ smokeButtons.forEach(btn => {
         if (!sim) return;
         sim.config.smokeMode = parseInt(btn.dataset.smoke, 10);
         setPressed(smokeButtons, n => parseInt(n.dataset.smoke, 10) === sim.config.smokeMode);
-        state.lastInteraction = performance.now();
+        touched();
     });
 });
 
@@ -479,7 +498,7 @@ document.querySelectorAll('.info').forEach(btn => {
         if (!box) return;
         box.hidden = !box.hidden;
         btn.setAttribute('aria-pressed', box.hidden ? 'false' : 'true');
-        state.lastInteraction = performance.now();
+        touched();
     });
 });
 
@@ -487,7 +506,7 @@ function setView (mode) {
     if (!sim) return;
     sim.config.displayMode = mode;
     setPressed(viewButtons, n => parseInt(n.dataset.view, 10) === mode);
-    state.lastInteraction = performance.now();
+    touched();
 }
 
 function setMedium (key) {
@@ -506,7 +525,7 @@ function setMedium (key) {
     el('in-stripes').value = String(preset.smokeStripes);
     el('in-fade').value = String(Math.round(preset.DENSITY_DISSIPATION * 100));
     updateSliderOutputs();
-    state.lastInteraction = performance.now();
+    touched();
 }
 
 function setDirection (key) {
@@ -522,20 +541,20 @@ function setDirection (key) {
         setWind(true);
     }
     setPressed(dirButtons, n => n.dataset.dir === (state.windOn ? state.dirKey : 'off'));
-    state.lastInteraction = performance.now();
+    touched();
 }
 
 function loadPreset (name) {
     if (!sim) return;
     const builder = PRESETS[name] || PRESETS.empty;
     field.set(builder(overlay.width / Math.max(1, overlay.height)));
-    state.selected = null;
+    select(null);
     markObstaclesChanged();
     refreshTrash();
     sceneSelect.value = name;
     sim.reset();
     setWind(true);
-    state.lastInteraction = performance.now();
+    touched();
 }
 
 function setWind (on) {
@@ -556,7 +575,7 @@ function setWind (on) {
     el('btn-wind').setAttribute('aria-pressed', on ? 'true' : 'false');
     el('wind-state').textContent = on ? dict.switchOn : dict.switchOff;
     setPressed(dirButtons, n => n.dataset.dir === (on ? state.dirKey : 'off'));
-    state.lastInteraction = performance.now();
+    touched();
 }
 
 function setPaused (paused) {
@@ -566,32 +585,60 @@ function setPaused (paused) {
     // hidden is an IDL attribute of HTMLElement, not of SVGElement - assigning
     // it to an <svg> silently does nothing, so the swap goes through a class
     el('btn-pause').classList.toggle('paused', paused);
-    state.lastInteraction = performance.now();
+    touched();
 }
 
 el('btn-wind').addEventListener('click', () => setWind(!state.windOn));
 el('btn-pause').addEventListener('click', () => setPaused(!sim.config.paused));
-el('btn-reset').addEventListener('click', () => { sim.reset(); state.lastInteraction = performance.now(); });
+el('btn-reset').addEventListener('click', () => { sim.reset(); touched(); });
 el('btn-undo').addEventListener('click', () => {
     field.undo();
-    state.selected = null;
+    select(null);
     markObstaclesChanged();
     refreshTrash();
-    state.lastInteraction = performance.now();
+    touched();
 });
-el('btn-clear').addEventListener('click', () => {
+el('btn-clear').addEventListener('click', clearPicture);
+
+function clearPicture () {
     field.clear();
-    state.selected = null;
+    select(null);
     markObstaclesChanged();
     refreshTrash();
     sceneSelect.value = '';
-    state.lastInteraction = performance.now();
+    touched();
+}
+
+// Start over asks once: the first tap turns the button into "sure?", a
+// second one within CONFIRM_MS resets everything.
+let confirmUntil = 0;
+let confirmTimer = null;
+el('btn-reset-all').addEventListener('click', () => {
+    if (performance.now() < confirmUntil) {
+        endConfirm();
+        resetAll();
+        return;
+    }
+    confirmUntil = performance.now() + CONFIRM_MS;
+    el('btn-reset-all').classList.add('confirm');
+    el('reset-all-label').textContent = dict.resetConfirm;
+    showHint('resetConfirmHint');
+    clearTimeout(confirmTimer);
+    confirmTimer = setTimeout(endConfirm, CONFIRM_MS);
+    touched();
 });
+
+function endConfirm () {
+    confirmUntil = 0;
+    clearTimeout(confirmTimer);
+    el('btn-reset-all').classList.remove('confirm');
+    el('reset-all-label').textContent = dict.resetAll;
+}
 
 el('btn-settings').addEventListener('click', () => {
     const panel = el('panel');
     panel.hidden = !panel.hidden;
-    state.lastInteraction = performance.now();
+    touched();
 });
 el('panel-close').addEventListener('click', () => { el('panel').hidden = true; });
 
@@ -632,8 +679,9 @@ function setLanguage (lang) {
         el('pause-label').textContent = sim.config.paused ? dict.play : dict.pause;
     }
     updateSliderOutputs();
-    updateShapeBar();
+    renderInspector();
     updateDockToggle();
+    endConfirm();
     try { localStorage.setItem('wirbeltouch.lang', lang); } catch (e) { /* private mode */ }
 }
 
@@ -647,7 +695,7 @@ function setDockCollapsed (collapsed) {
     document.body.classList.toggle('dock-collapsed', collapsed);
     el('dock-toggle').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     updateDockToggle();
-    state.lastInteraction = performance.now();
+    touched();
 }
 
 function updateDockToggle () {
@@ -656,84 +704,166 @@ function updateDockToggle () {
 
 el('dock-toggle').addEventListener('click', () => setDockCollapsed(!dockCollapsed));
 
-function updateShapeBar () {
-    const shapeTool = isShapeTool();
-    el('shapebar').hidden = !shapeTool;
-    if (!shapeTool) return;
-    const brush = state.tool === 'brush';
-    const input = el('in-dock-size');
+/* --------------------------------------------------------------- inspector */
+
+// Settings of the selected obstacle: size, angle, and for a device whatever
+// its entry in DEVICES lists.
+function select (shape) {
+    if (state.selected === shape) return;
+    state.selected = shape || null;
+    state.overlayDirty = true;
+    renderInspector();
+}
+
+const fmt = v => String(Math.round(v * 10) / 10);
+
+function renderInspector () {
+    const s = state.selected;
+    el('inspector').hidden = !s;
+    if (!s) return;
+    el('insp-title').textContent = dict[TYPE_LABEL[s.type]] || '';
+    const brush = s.type === 'brush';
+    const input = el('in-size');
     input.min = brush ? '0.5' : '2';
     input.max = brush ? '8' : '30';
     input.step = brush ? '0.25' : '0.5';
-    input.value = String(brush ? state.pen : state.size);
-    el('dock-size-label').textContent = brush ? dict.penWidth : dict.size;
-    el('out-dock-size').textContent = input.value;
-    el('rotate-group').hidden = ROTATABLE.indexOf(state.tool) < 0 && state.tool !== 'rotor';
-    showAngle();
+    el('insp-size-label').textContent = brush ? dict.penWidth : dict.size;
+    el('rotate-group').hidden = ROTATABLE.indexOf(s.type) < 0;
+    buildParams(s);
+    syncInspector();
 }
 
-// the angle, or for a rotor its sense of rotation
-function showAngle () {
-    const out = el('out-dock-angle');
-    if (state.tool === 'rotor') {
-        const sel = state.selected && state.selected.type === 'rotor' ? state.selected : null;
-        const spin = sel ? sel.spin : state.spin;
-        out.textContent = spin > 0 ? '↺' : '↻';
-        out.title = spin > 0 ? dict.spinLeft : dict.spinRight;
-    } else {
-        out.textContent = Math.round(state.angle) + '°';
-        out.title = dict.angle;
+// values only, e.g. while two fingers turn the shape
+function syncInspector () {
+    const s = state.selected;
+    if (!s) return;
+    el('in-size').value = String(s.r * 100);
+    el('out-size').textContent = fmt(s.r * 100);
+    const angle = el('in-angle');
+    if (document.activeElement !== angle) angle.value = String(Math.round(s.angle || 0));
+}
+
+function buildParams (s) {
+    const box = el('insp-params');
+    box.textContent = '';
+    const spec = DEVICES[s.type];
+    box.hidden = !spec;
+    if (!spec) return;
+    for (const p of spec.params) {
+        const row = document.createElement('div');
+        row.className = 'param';
+        row.dataset.param = p.key;
+        const label = document.createElement('span');
+        label.className = 'param-label';
+        label.textContent = dict[p.label] || p.key;
+        row.appendChild(label);
+        if (p.kind === 'range') {
+            const input = document.createElement('input');
+            input.type = 'range';
+            input.min = String(p.min);
+            input.max = String(p.max);
+            input.step = String(p.step);
+            input.value = String(s[p.key]);
+            input.setAttribute('aria-label', label.textContent);
+            const out = document.createElement('output');
+            const show = () => { out.textContent = fmt(s[p.key]) + (p.unit || ''); };
+            input.addEventListener('input', () => {
+                s[p.key] = parseFloat(input.value);
+                show();
+                refreshParams();
+                touched();
+            });
+            show();
+            row.append(input, out);
+        } else if (p.kind === 'choice') {
+            const group = document.createElement('div');
+            group.className = 'segmented';
+            group.setAttribute('role', 'group');
+            group.setAttribute('aria-label', label.textContent);
+            for (const [value, key] of p.options) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'seg';
+                b.textContent = dict[key] || String(value);
+                b.setAttribute('aria-pressed', s[p.key] === value ? 'true' : 'false');
+                b.addEventListener('click', () => {
+                    s[p.key] = value;
+                    group.querySelectorAll('.seg').forEach(x => {
+                        x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+                    });
+                    refreshParams();
+                    state.overlayDirty = true;
+                    touched();
+                });
+                group.appendChild(b);
+            }
+            row.appendChild(group);
+        }
+        box.appendChild(row);
+    }
+    refreshParams();
+}
+
+// settings that only matter in some modes, e.g. the interval of a pulsed fan
+function refreshParams () {
+    const s = state.selected;
+    const spec = s && DEVICES[s.type];
+    if (!spec) return;
+    for (const p of spec.params) {
+        const row = el('insp-params').querySelector('[data-param="' + p.key + '"]');
+        if (row) row.hidden = p.when ? !p.when(s) : false;
     }
 }
 
-el('in-dock-size').addEventListener('input', () => {
-    const v = parseFloat(el('in-dock-size').value);
-    const sel = state.selected;
-    if (state.tool === 'brush') {
-        state.pen = v;
-        if (sel && sel.type === 'brush') { sel.r = v / 100; markObstaclesChanged(); }
-    } else {
-        state.size = v;
-        if (sel && sel.type !== 'brush') { sel.r = v / 100; markObstaclesChanged(); }
-    }
-    el('out-dock-size').textContent = String(v);
-    state.lastInteraction = performance.now();
+el('in-size').addEventListener('input', () => {
+    const s = state.selected;
+    if (!s) return;
+    const v = parseFloat(el('in-size').value);
+    s.r = v / 100;
+    // the next obstacle of the kind comes out the same size
+    if (s.type === 'brush') state.pen = v; else state.size = v;
+    el('out-size').textContent = fmt(v);
+    markObstaclesChanged();
+    touched();
 });
 
+function setAngle (deg) {
+    const s = state.selected;
+    if (!s || !isFinite(deg)) return;
+    s.angle = wrapAngle(deg);
+    markObstaclesChanged();
+    syncInspector();
+    touched();
+}
+
 function nudgeAngle (delta) {
-    // a rotor looks the same at any angle: its arrows set which way it turns
-    if (state.tool === 'rotor') {
-        state.spin = delta < 0 ? 1 : -1;      // +1 anticlockwise
-        if (state.selected && state.selected.type === 'rotor') {
-            state.selected.spin = state.spin;
-            state.overlayDirty = true;
-        }
-        showAngle();
-        state.lastInteraction = performance.now();
-        return;
-    }
-    state.angle = wrapAngle(state.angle + delta);
-    state.angles[state.tool] = state.angle;
-    if (state.selected) {
-        state.selected.angle = state.angle;
-        markObstaclesChanged();
-    }
-    showAngle();
-    state.lastInteraction = performance.now();
+    if (!state.selected || ROTATABLE.indexOf(state.selected.type) < 0) return;
+    setAngle(Math.round((state.selected.angle || 0) + delta));
 }
 
 // angles count clockwise: turning left takes them down
 el('btn-rot-left').addEventListener('click', () => nudgeAngle(-ROTATE_STEP));
 el('btn-rot-right').addEventListener('click', () => nudgeAngle(ROTATE_STEP));
 
-function syncShapeControls (shape) {
-    if (!shape) return;
-    if (shape.type === 'brush') state.pen = shape.r * 100;
-    else state.size = shape.r * 100;
-    state.angle = shape.angle || 0;
-    if (shape.type === 'rotor') state.spin = shape.spin;
-    updateShapeBar();
-}
+// the angle can be typed in to the degree
+const angleInput = el('in-angle');
+angleInput.addEventListener('focus', () => angleInput.select());
+angleInput.addEventListener('input', () => {
+    const v = parseFloat(angleInput.value);
+    if (!state.selected || !isFinite(v)) return;
+    state.selected.angle = wrapAngle(v);
+    markObstaclesChanged();
+    touched();
+});
+angleInput.addEventListener('change', () => {
+    angleInput.value = String(Math.round(state.selected ? state.selected.angle || 0 : 0));
+});
+angleInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === 'Escape') angleInput.blur();
+});
+
+el('btn-delete').addEventListener('click', deleteSelected);
+el('btn-done').addEventListener('click', () => { select(null); touched(); });
 
 /* ------------------------------------------------------------------ sliders */
 
@@ -742,7 +872,7 @@ function bindSlider (id, apply) {
     input.addEventListener('input', () => {
         apply(parseFloat(input.value));
         updateSliderOutputs();
-        state.lastInteraction = performance.now();
+        touched();
     });
 }
 
@@ -750,15 +880,18 @@ bindSlider('in-wind', v => { if (sim) sim.config.windSpeed = v; });
 bindSlider('in-stripes', v => { if (sim) sim.config.smokeStripes = v; });
 bindSlider('in-curl', v => { if (sim) sim.config.CURL = v; });
 bindSlider('in-fade', v => { if (sim) sim.config.DENSITY_DISSIPATION = v / 100; });
-bindSlider('in-quality', v => {
+bindSlider('in-quality', setQuality);
+
+function setQuality (v) {
     state.quality = v;
+    el('in-quality').value = String(v);
     if (!sim) return;
     const q = QUALITY[v];
     sim.config.SIM_RESOLUTION = q.sim;
     sim.config.DYE_RESOLUTION = q.dye;
     sim.config.PRESSURE_ITERATIONS = q.iter;
     sim.initFramebuffers();
-});
+}
 
 function updateSliderOutputs () {
     el('out-wind').textContent = el('in-wind').value;
@@ -783,9 +916,16 @@ function trackDockHeight () {
 /* -------------------------------------------------------------------- hints */
 
 let hintTimer = null;
-function showHint (key) {
-    hintEl.setAttribute('data-i18n', key);
-    hintEl.textContent = dict[key] || '';
+// vars fill in {name} placeholders, e.g. the tool that is about to be placed
+function showHint (key, vars) {
+    let text = dict[key] || '';
+    if (vars) {
+        text = text.replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : m));
+        hintEl.removeAttribute('data-i18n');    // a language switch cannot redo the fill-in
+    } else {
+        hintEl.setAttribute('data-i18n', key);
+    }
+    hintEl.textContent = text;
     hintEl.classList.add('show');
     clearTimeout(hintTimer);
     hintTimer = setTimeout(() => hintEl.classList.remove('show'), 3200);
@@ -795,22 +935,25 @@ function showHint (key) {
 
 window.addEventListener('keydown', e => {
     if (!sim) return;
-    if (e.target && /input|textarea/i.test(e.target.tagName)) return;
+    if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
     switch (e.key.toLowerCase()) {
         case ' ': e.preventDefault(); setPaused(!sim.config.paused); break;
         case 'w': setWind(!state.windOn); break;
-        case 'c': field.clear(); state.selected = null; markObstaclesChanged(); break;
+        case 'c': clearPicture(); break;
         case 'r': sim.reset(); break;
         case 'h': el('help').hidden = !el('help').hidden; break;
         case 'q': nudgeAngle(-ROTATE_STEP); break;
         case 'e': nudgeAngle(ROTATE_STEP); break;
+        case 'delete':
+        case 'backspace': deleteSelected(); break;
+        case 'escape': setArmed(null); select(null); break;
         case '1': setView(0); break;
         case '2': setView(1); break;
         case '3': setView(2); break;
         case '4': setView(3); break;
         default: return;
     }
-    state.lastInteraction = performance.now();
+    touched();
 });
 
 window.addEventListener('resize', () => { state.overlayDirty = true; });
@@ -849,30 +992,47 @@ function frame (now) {
         }
     }
 
-    if (!sim.config.paused) sim.step(dt);
+    if (!sim.config.paused) {
+        sim.step(dt);
+        field.advance(dt, sim.time);
+    }
     sim.render();
 
     // fan blades and rotors turn, so with a device in the picture the
     // overlay is redrawn every frame
     if (state.overlayDirty || (field.hasDevices() && !sim.config.paused)) {
-        field.renderOverlay(octx, overlay.width, overlay.height, null,
-            isShapeTool() ? state.selected : null, now / 1000);
+        field.renderOverlay(octx, overlay.width, overlay.height, null, state.selected);
         state.overlayDirty = false;
     }
 
     if (now - state.lastInteraction > IDLE_RESET_MS) {
         state.lastInteraction = now;
-        if (document.visibilityState === 'visible') resetToDefaultScene();
+        if (document.visibilityState === 'visible') resetAll();
     }
 }
 
-function resetToDefaultScene () {
-    loadPreset(DEFAULT_SCENE);
-    setPaused(false);
+// Start over: the default scene with every setting as it was at the start.
+// The language stays - it belongs to whoever is standing at the exhibit.
+// Also what happens after IDLE_RESET_MS without anyone touching it.
+function resetAll () {
+    if (!sim) return;
+    setArmed(null);
+    select(null);
+    state.size = DEFAULT_SIZE;
+    state.pen = DEFAULT_PEN;
+    if (state.quality !== DEFAULT_QUALITY) setQuality(DEFAULT_QUALITY);
+    setMedium('air');
+    sim.config.smokeMode = 0;
+    setPressed(smokeButtons, n => n.dataset.smoke === '0');
     setView(0);
+    setPaused(false);
     setDirection('right');
+    loadPreset(DEFAULT_SCENE);
     el('panel').hidden = true;
     el('help').hidden = true;
+    document.querySelectorAll('.infobox').forEach(box => { box.hidden = true; });
+    document.querySelectorAll('.info').forEach(btn => btn.setAttribute('aria-pressed', 'false'));
+    showHint('hintHand');
 }
 
 /* --------------------------------------------------------------------- boot */
@@ -882,12 +1042,12 @@ function boot () {
     try { stored = localStorage.getItem('wirbeltouch.lang'); } catch (e) { /* ignore */ }
     setLanguage(STRINGS[stored] ? stored : state.lang);
 
-    setPressed(toolButtons, n => n.dataset.tool === state.tool);
+    setArmed(null);
     setPressed(smokeButtons, n => n.dataset.smoke === '0');
     setPressed(viewButtons, n => n.dataset.view === '0');
     setHelpTab('tab-basic');
     setDockCollapsed(window.innerWidth < 720);
-    updateShapeBar();
+    renderInspector();
     trackDockHeight();
 
     sizeCanvases();
@@ -898,7 +1058,7 @@ function boot () {
     setDirection('right');
     loadPreset(DEFAULT_SCENE);
     setPaused(false);
-    showHint('hintPlace');
+    showHint('hintHand');
     requestAnimationFrame(frame);
 }
 

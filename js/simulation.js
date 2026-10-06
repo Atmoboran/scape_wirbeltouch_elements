@@ -32,6 +32,9 @@ export const defaultConfig = {
     DENSITY_DISSIPATION: 0.12,
     VELOCITY_DISSIPATION: 0.09,
     CURL: 6,
+    curlFloor: 0.04,        // confinement starts above this vorticity, per unit
+                            // of wind speed: real eddies scale with the wind,
+                            // the numerical noise underneath does not grow
     SPLAT_RADIUS: 0.22,
     SPLAT_FORCE: 5000,
     // wind tunnel
@@ -41,7 +44,11 @@ export const defaultConfig = {
     windGain: 1,            // fan speed: ramped to 0 when the wind is switched off
     windDecay: 0,           // 1/s, a uniform slow-down of the whole field while
                             // the fan runs out
-    inflowWobble: 0.02,     // tiny inlet unsteadiness, seeds vortex shedding
+    // A brief, fading unsteadiness at the inlet after the wind starts or the
+    // obstacles change: it tips a symmetric wake into shedding, then dies
+    // away, so an empty tunnel settles into a steady stream.
+    inflowWobble: 0.02,
+    wobbleFade: 2.5,        // s, decay time of that kick
     inflowBand: 0.05,
     inletStrength: 0.85,
     spongeStrength: 0.06,
@@ -52,12 +59,7 @@ export const defaultConfig = {
     // fills them in from the active theme.
     smokeColorA: [1, 1, 1],
     smokeColorB: [1, 1, 1],
-    // devices, speeds as multiples of the wind speed
-    fanSpeed: 1.8,          // air in a fan's duct
-    rotorSpeed: 2.0,        // a rotor's surface; above 2 a Flettner rotor
-                            // makes most of its lift
-    chimneySpeed: 0.8,      // exhaust leaving the stack
-    sinkSpeed: 1.2,         // air at the rim of a suction vent
+    // devices carry their own strength (see DEVICES in obstacles.js)
     deviceSmokeColor: [0.3, 0.3, 0.3],
     // rendering
     displayMode: 0,         // 0 dye, 1 speed, 2 vorticity, 3 pressure
@@ -107,6 +109,7 @@ export class FluidSimulation {
         };
 
         this.time = 0;
+        this.kickTime = 0;
         this.blit = createBlitter(gl);
         this.obstacleTexture = createCanvasTexture(gl, this.obstacles.maskCanvas);
         this.initFramebuffers();
@@ -169,8 +172,15 @@ export class FluidSimulation {
     // pressure solve only carries information a few dozen cells per frame, so
     // without this the domain accelerates gradually from the inlet and the
     // smoke front rolls up on the shear against the still air ahead of it.
+    // Restarts the fading inlet unsteadiness, e.g. after an obstacle was
+    // placed, so its wake gets the nudge it needs to start shedding.
+    kick () {
+        this.kickTime = this.time;
+    }
+
     prime () {
         if (!this.config.windTunnel) return;
+        this.kick();
         this.syncObstacles();   // a scene change must not prime through a stale mask
         const gl = this.gl;
         const P = this.programs;
@@ -246,7 +256,8 @@ export class FluidSimulation {
             // outlet keeps draining, which sucks the flow backwards.
             gl.uniform1f(P.inflow.uniforms.uInletStrength, Math.min(1.0, c.inletStrength) * c.windGain);
             gl.uniform1f(P.inflow.uniforms.uSpongeStrength, c.spongeStrength * c.windGain);
-            gl.uniform1f(P.inflow.uniforms.uWobble, c.inflowWobble);
+            gl.uniform1f(P.inflow.uniforms.uWobble,
+                c.inflowWobble * Math.exp(-(this.time - this.kickTime) / c.wobbleFade));
             gl.uniform1f(P.inflow.uniforms.uTime, this.time);
             this.blit(velocity.write);
             velocity.swap();
@@ -278,6 +289,7 @@ export class FluidSimulation {
             gl.uniform1i(P.vorticity.uniforms.uCurl, this.curl.attach(1));
             gl.uniform1i(P.vorticity.uniforms.uObstacles, obst.attach(2));
             gl.uniform1f(P.vorticity.uniforms.curl, c.CURL);
+            gl.uniform1f(P.vorticity.uniforms.uFloor, Math.max(0.5, c.curlFloor * c.windSpeed));
             gl.uniform1f(P.vorticity.uniforms.dt, dt);
             this.blit(velocity.write);
             velocity.swap();
@@ -381,12 +393,11 @@ export class FluidSimulation {
         const geo = new Float32Array(MAX_DEVICES * 4);
         const par = new Float32Array(MAX_DEVICES * 4);
         const sinks = [];
-        const speeds = [c.fanSpeed, c.rotorSpeed, c.sinkSpeed, c.chimneySpeed];
         list.forEach((d, i) => {
             geo.set([d.x, d.y, d.r, d.angle], i * 4);
-            let speed = speeds[d.type] * c.windSpeed;
+            let speed = d.power * d.activity * c.windSpeed;
             if (d.type === 1) speed *= d.spin;
-            par.set([d.type, speed, 0, 0], i * 4);
+            par.set([d.type, speed, d.activity, 0], i * 4);
             if (d.type === 2 && sinks.length < 16) {
                 // strength per cell, so that the air arrives at the rim of
                 // the vent at the set speed: q * area = speed * circumference

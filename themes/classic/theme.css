@@ -210,7 +210,8 @@ svg .fill { fill: currentColor; stroke: none; }
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(max(10px, env(safe-area-inset-bottom)) + 152px);
+  /* clear of the dock, whatever it currently shows */
+  bottom: calc(max(10px, env(safe-area-inset-bottom)) + var(--dock-height, 142px) + 10px);
   margin: 0;
   padding: 6px 14px;
   border-radius: 999px;
@@ -369,7 +370,7 @@ input[type="range"]::-moz-range-thumb {
   .tool span, .action span { display: none; }
   .tool, .action { padding: 6px; min-width: 48px; }
   :root { --tap: 48px; }
-  .hint { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 128px); font-size: 11.5px; }
+  .hint { font-size: 11.5px; }
 }
 @media (max-height: 520px) {
   .brand { display: none; }
@@ -398,21 +399,63 @@ input[type="range"]::-moz-range-thumb {
 }
 #dock-body[hidden] { display: none; }
 
-/* ------------------------------------------------------- dock: shape controls */
-#shapebar {
+/* ---------------------------------------- dock: inspector of the selection */
+#inspector {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
-  padding: 8px 14px;
+  justify-content: center;
+  gap: 8px 14px;
+  padding: 8px 10px 8px 14px;
   border-radius: var(--radius);
   background: var(--glass);
   border: 1px solid var(--glass-line);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   pointer-events: auto;
-  max-width: min(560px, 100%);
+  max-width: min(980px, 100%);
 }
-#shapebar[hidden] { display: none; }
+.insp-title { font-size: 13px; font-weight: 650; letter-spacing: 0.04em; color: var(--ink); }
+/* the settings flow in line with size and angle */
+.insp-params { display: contents; }
+.param { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.param-label { white-space: nowrap; }
+.param input[type="range"] { width: clamp(80px, 14vw, 140px); }
+.param output { min-width: 2.6em; color: var(--accent); font-variant-numeric: tabular-nums; }
+.segmented { display: inline-flex; gap: 4px; }
+.seg {
+  min-height: 34px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.seg[aria-pressed="true"] {
+  background: rgba(79, 195, 247, 0.18);
+  border-color: rgba(79, 195, 247, 0.5);
+  color: #dbf4ff;
+}
+.angle-edit { display: inline-flex; align-items: baseline; color: var(--accent); font-size: 13px; font-variant-numeric: tabular-nums; }
+.angle-edit input {
+  width: 2.4em;
+  padding: 2px 1px 2px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.angle-edit input::-webkit-outer-spin-button,
+.angle-edit input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.angle-edit:hover input, .angle-edit input:focus { border-bottom-color: var(--accent); outline: none; }
+#inspector .chip { width: 40px; height: 40px; }
+#inspector .insp-delete:hover { background: rgba(226, 74, 58, 0.9); color: #fff; }
+.action.confirm { background: rgba(226, 74, 58, 0.9); color: #fff; }
 .dock-slider {
   display: flex;
   align-items: center;
@@ -487,9 +530,9 @@ input[type="range"]::-moz-range-thumb {
   #tools::-webkit-scrollbar { display: none; }
   #tools .tool, #tools .toolgroup, #tools .divider { flex: 0 0 auto; }
   #actions { flex-wrap: nowrap; }
-  #shapebar { width: calc(100vw - 20px); justify-content: space-between; gap: 8px; padding: 8px 10px; }
+  #inspector { width: calc(100vw - 20px); gap: 8px 10px; padding: 8px 10px; }
+  .insp-title { flex-basis: 100%; text-align: center; }
   .dock-slider span { display: none; }
-  body.dock-collapsed .hint { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 56px); }
 }
 
 /* ------------------------------------------------------------ drag-to-delete */

@@ -186,6 +186,7 @@ uniform sampler2D uCurl;
 uniform sampler2D uObstacles;
 uniform float curl;
 uniform float dt;
+uniform float uFloor;       // vorticity below this is noise, not an eddy
 
 void main () {
     float L = texture2D(uCurl, vL).x;
@@ -196,9 +197,11 @@ void main () {
 
     vec2 force = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L));
     force /= length(force) + 0.0001;
-    // normalising the gradient would otherwise turn single-cell noise into a
-    // full strength kick, so weak vorticity is faded out
-    force *= curl * C * smoothstep(0.0, 1.2, abs(C));
+    // Normalising the gradient would turn any speck of noise into a full
+    // strength kick. Left alone, the free stream of an empty tunnel fills with
+    // small eddies that grow downstream and make every smoke line wobble, so
+    // only vorticity well above the noise is reinforced.
+    force *= curl * C * smoothstep(uFloor, 2.0 * uFloor, abs(C));
     force.y *= -1.0;
 
     vec2 velocity = texture2D(uVelocity, vUv).xy;
@@ -436,7 +439,7 @@ varying vec2 vUv;
 uniform sampler2D uVelocity;
 uniform sampler2D uObstacles;
 uniform vec4 uDev[8];       // x, y (uv), radius (domain heights), angle (rad)
-uniform vec4 uDevP[8];      // type (0 fan, 1 rotor, 3 chimney), speed, 0, 0
+uniform vec4 uDevP[8];      // type (0 fan, 1 rotor, 3 chimney), speed, activity, 0
 uniform int uDevCount;
 uniform float uAspect;
 uniform float uCell;        // one simulation cell in domain heights
@@ -508,16 +511,16 @@ void main () {
             float stripe = 1.0 - smoothstep(0.15, 0.32, abs(fract(w / R * 2.2 + 0.5) - 0.5));
             float k = (1.0 - smoothstep(R * 0.03, R * 0.08, abs(u)))
                     * (1.0 - smoothstep(R * 0.5, R * 0.62, abs(w))) * stripe;
-            c = mix(c, vec4(uColor, 1.0), clamp(k * uAmount * 0.6, 0.0, 1.0));
+            c = mix(c, vec4(uColor, 1.0), clamp(k * uAmount * 0.6 * P.z, 0.0, 1.0));
         } else if (P.x < 1.5) {
             // nothing: a rotor only stirs
         } else if (P.x < 2.5) {
             float r = length(d);
-            c *= 1.0 - (1.0 - smoothstep(R * 0.2, R * 0.55, r)) * clamp(uAmount * 4.0, 0.0, 1.0);
+            c *= 1.0 - (1.0 - smoothstep(R * 0.2, R * 0.55, r)) * clamp(uAmount * 4.0 * P.z, 0.0, 1.0);
         } else {
             vec2 q = d - up * R * 1.06;
             float k = 1.0 - smoothstep(R * 0.10, R * 0.22, length(q));
-            c = mix(c, vec4(uColor, 1.0), clamp(k * uAmount * 1.5, 0.0, 1.0));
+            c = mix(c, vec4(uColor, 1.0), clamp(k * uAmount * 1.5 * P.z, 0.0, 1.0));
         }
     }
     float solid = step(0.5, texture2D(uObstacles, vUv).x);

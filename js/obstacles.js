@@ -8,9 +8,10 @@
 // a portrait screen from wall to wall. Shapes that belong to the domain itself
 // (ground, channel walls, towers) set unit = 'h' and scale with its height.
 //
-// Devices are obstacles with a function - a fan, a spinning rotor, a suction
-// vent, a chimney. Their solid parts go into the mask like any other shape;
-// what they do to the air is handed to the solver as a short list of drivers.
+// Devices ("Windmacher") are obstacles with a function - a fan, a spinning
+// rotor, a suction vent, a chimney. Their solid parts go into the mask like any
+// other shape; what they do to the air is handed to the solver as a short list
+// of drivers. What can be set on each of them is declared in DEVICES below.
 //
 // The same shape list is painted twice:
 //   * into a small hidden canvas at simulation resolution -> boundary mask
@@ -19,16 +20,70 @@
 let nextId = 1;
 
 export const SHAPE_TYPES = ['circle', 'square', 'plate', 'airfoil', 'hill', 'brush'];
-export const DEVICE_TYPES = ['fan', 'rotor', 'sink', 'chimney'];
 
-// shapes that can be turned; a circle and a suction vent look the same at
-// any angle, a rotor's arrows set its sense of rotation instead
+// Every device can run steadily or switch itself on and off.
+const RHYTHM = [
+    {
+        key: 'rhythm', kind: 'choice', label: 'paramRhythm', value: 'steady',
+        options: [['steady', 'rhythmSteady'], ['pulse', 'rhythmPulse']]
+    },
+    {
+        key: 'period', kind: 'range', label: 'paramPeriod', value: 3,
+        min: 1, max: 8, step: 0.5, unit: 's', when: s => s.rhythm === 'pulse'
+    }
+];
+
+const power = (value, min, max) => ({
+    key: 'power', kind: 'range', label: 'paramPower', value, min, max, step: 0.1, unit: '×'
+});
+
+// The devices and their settings. The inspector builds its controls from
+// these lists (label and option names are string keys of the theme), the
+// solver reads the values through drivers(). power is a multiple of the wind
+// speed: the air in a fan's duct, a rotor's surface, the air at the rim of a
+// suction vent, the exhaust leaving a chimney.
+//
+// Adding a device: an entry here, its solid parts in shapePath, its footprint
+// in hitPath, its look in paintDevice and what it does to the air in the
+// drive / deviceDye shaders (which tell devices apart by their index here).
+export const DEVICES = {
+    fan: { params: [power(1.8, 0.3, 3.5), ...RHYTHM] },
+    rotor: {
+        params: [
+            power(2.0, 0.3, 4),         // above 2 a Flettner rotor makes most of its lift
+            {
+                key: 'spin', kind: 'choice', label: 'paramSpin', value: -1,
+                options: [[-1, 'spinCw'], [1, 'spinCcw']]
+            },
+            ...RHYTHM
+        ]
+    },
+    sink: { params: [power(1.2, 0.3, 3), ...RHYTHM] },
+    chimney: { params: [power(0.8, 0.2, 2.5), ...RHYTHM] }
+};
+export const DEVICE_TYPES = Object.keys(DEVICES);
+
+// shapes that can be turned; a circle, a rotor and a suction vent look the
+// same at any angle
 export const ROTATABLE = ['square', 'plate', 'airfoil', 'hill', 'brush', 'box', 'fan', 'chimney'];
 
 export function makeShape (type, x, y, r, angle) {
     const shape = { id: nextId++, type, x, y, r, angle: angle || 0, points: null };
-    if (type === 'rotor') shape.spin = -1;     // clockwise: lift upwards in a flow from the left
+    if (DEVICES[type]) {
+        for (const p of DEVICES[type].params) shape[p.key] = p.value;
+        shape.phase = 0;        // how far the blades or the drum have turned
+        shape.activity = 1;     // 0..1, follows the rhythm
+    }
     return shape;
+}
+
+// How hard a device runs at time t (seconds): 1 when steady, switching on
+// and off with soft edges when pulsed.
+export function deviceActivity (s, t) {
+    if (s.rhythm !== 'pulse') return 1;
+    const x = Math.sin(2 * Math.PI * t / Math.max(0.2, s.period || 3));
+    const k = Math.min(1, Math.max(0, (x + 0.35) / 0.7));
+    return k * k * (3 - 2 * k);
 }
 
 export function isDevice (shape) {
@@ -128,9 +183,20 @@ export class ObstacleField {
         return this.shapes.some(isDevice);
     }
 
+    // Moves the devices on to simulation time t: their rhythm, and how far
+    // blades and drums have turned.
+    advance (dt, t) {
+        for (const s of this.shapes) {
+            if (!isDevice(s)) continue;
+            s.activity = deviceActivity(s, t);
+            s.phase = (s.phase || 0) + dt * s.activity * (s.power || 1);
+        }
+    }
+
     // What the devices do to the air, for the solver. Positions are in uv
     // (y up), lengths in units of the domain height, angles in radians
-    // counter-clockwise, as is usual with y up. At most max of them, the most recently placed win.
+    // counter-clockwise, as is usual with y up. At most max of them, the most
+    // recently placed win.
     drivers (w, h, max) {
         const out = [];
         for (let i = this.shapes.length - 1; i >= 0 && out.length < max; i--) {
@@ -142,6 +208,8 @@ export class ObstacleField {
                 y: 1 - s.y,
                 r: s.r * unitLength(s, w, h) / h,
                 angle: -(s.angle || 0) * Math.PI / 180,
+                power: s.power,
+                activity: s.activity == null ? 1 : s.activity,
                 spin: s.spin || 1
             });
         }
@@ -187,14 +255,13 @@ export class ObstacleField {
     }
 
     // Pretty rendering on top of the simulation. The selected shape - the one
-    // the size and rotate controls act on - gets a halo so it is obvious which
-    // obstacle a tap picked up.
-    // time (seconds) turns the fan blades and rotors
-    renderOverlay (ctx, w, h, ghost, selected, time = 0) {
+    // the inspector acts on - gets a halo so it is obvious which obstacle a tap
+    // picked up.
+    renderOverlay (ctx, w, h, ghost, selected) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, w, h);
-        for (const s of this.shapes) paintShape(ctx, s, w, h, 1.0, s === selected, this.style, time);
-        if (ghost) paintShape(ctx, ghost, w, h, 0.45, false, this.style, time);
+        for (const s of this.shapes) paintShape(ctx, s, w, h, 1.0, s === selected, this.style);
+        if (ghost) paintShape(ctx, ghost, w, h, 0.45, false, this.style);
     }
 
     hitTest (ctx, x, y, w, h) {
@@ -213,7 +280,7 @@ export class ObstacleField {
     }
 }
 
-function paintShape (ctx, s, w, h, alpha, selected, style, time) {
+function paintShape (ctx, s, w, h, alpha, selected, style) {
     const p = shapePath(s, w, h);
     const look = style.obstacle;
     if (selected) paintSelection(ctx, isDevice(s) ? hitPath(s, w, h) : p, h, alpha, style.selection);
@@ -257,12 +324,15 @@ function paintShape (ctx, s, w, h, alpha, selected, style, time) {
         }
     }
     ctx.restore();
-    if (isDevice(s)) paintDevice(ctx, s, w, h, R, alpha, style.device, time);
+    if (isDevice(s)) paintDevice(ctx, s, w, h, R, alpha, style.device);
 }
 
-// The working parts on top of a device: what turns, and which way the air goes.
-function paintDevice (ctx, s, w, h, R, alpha, look, time) {
+// The working parts on top of a device: what turns, and which way the air
+// goes. Arrows fade while a pulsed device is resting.
+function paintDevice (ctx, s, w, h, R, alpha, look) {
     const a = (s.angle || 0) * Math.PI / 180;
+    const phase = s.phase || 0;
+    const resting = 0.3 + 0.7 * (s.activity == null ? 1 : s.activity);
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(s.x * w, s.y * h);
@@ -276,7 +346,7 @@ function paintDevice (ctx, s, w, h, R, alpha, look, time) {
             ctx.save();
             ctx.translate(-R * 0.05, 0);
             ctx.scale(0.35, 1);                    // seen from the side
-            ctx.rotate(time * 9);
+            ctx.rotate(phase * 5);
             ctx.fillStyle = look.color;
             for (let i = 0; i < 3; i++) {
                 ctx.rotate(Math.PI * 2 / 3);
@@ -289,12 +359,13 @@ function paintDevice (ctx, s, w, h, R, alpha, look, time) {
             ctx.beginPath();
             ctx.arc(-R * 0.05, 0, R * 0.1, 0, Math.PI * 2);
             ctx.fill();
+            ctx.globalAlpha = alpha * resting;
             arrow(ctx, R * 0.35, 0, R * 0.95, 0, line, look.color);
             break;
         }
         case 'rotor': {
             // a bar across the drum shows it turning, arrows show the sense
-            const turn = -(s.spin || 1) * time * 2.2;
+            const turn = -(s.spin || 1) * phase * 1.1;
             ctx.rotate(turn);
             ctx.strokeStyle = look.color;
             ctx.lineWidth = line * 1.4;
@@ -303,6 +374,7 @@ function paintDevice (ctx, s, w, h, R, alpha, look, time) {
             ctx.lineTo(R * 0.72, 0);
             ctx.stroke();
             ctx.rotate(-turn);
+            ctx.globalAlpha = alpha * resting;
             ctx.lineWidth = line;
             const dir = s.spin || 1;            // +1 counter-clockwise on screen
             for (let k = 0; k < 2; k++) {
@@ -334,6 +406,7 @@ function paintDevice (ctx, s, w, h, R, alpha, look, time) {
             ctx.beginPath();
             ctx.arc(0, 0, R * 0.32, 0, Math.PI * 2);
             ctx.fill();
+            ctx.globalAlpha = alpha * resting;
             for (let k = 0; k < 4; k++) {
                 const ang = k * Math.PI / 2 + Math.PI / 4;
                 const c = Math.cos(ang);

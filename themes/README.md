@@ -92,10 +92,19 @@ change the rest, layout included. Things worth knowing:
 * `--dock-height` is set on `<html>` by the app and follows the tool dock's
   height. Use it to keep floating elements (hint, bin) clear of the dock.
 * `html[data-theme="<name>"]` is set while the theme is active.
-* State hooks: `[aria-pressed="true"]` on the selected tool, pill, tab and
-  info button, and on the wind switch while the wind blows (which also gets
-  `.on`; its `.knob` holds the word on/off); `.paused` on the pause button; `.show` on the hint and the bin; `.hot` on the bin while an
-  obstacle hovers over it; `body.dock-collapsed`.
-* The tools come in three `.toolgroup`s (obstacles, devices, by hand), each
-  with a `.groupcap` caption and a `.toolrow`. Obstacle tools whose icon is
-  the solid shape they place carry `.solid`, device tools `.device`.
+* State hooks: `[aria-pressed="true"]` on the armed palette tool, pill, tab,
+  segment and info button, and on the wind switch while the wind blows (which
+  also gets `.on`; its `.knob` holds the word on/off); `.paused` on the pause
+  button; `.confirm` on the start-over button while it waits for its second
+  tap; `.show` on the hint and the bin; `.hot` on the bin while an obstacle
+  hovers over it; `body.placing` while a tool waits to be placed;
+  `body.dock-collapsed`.
+* The palette comes in two `.toolgroup`s (obstacles, air movers), each with a
+  `.groupcap` caption and a `.toolrow`. Obstacle tools whose icon is the solid
+  shape they place carry `.solid`, air movers `.device`.
+* `#inspector` holds the settings of the selected obstacle: `.insp-title`, the
+  size slider (`.dock-slider`), the angle (`.rotate` with an `.angle-edit`
+  number field), `.insp-params` and the `.insp-delete` / `.insp-done` chips.
+  `.insp-params` is filled by the app from `DEVICES` in `js/obstacles.js`:
+  one `.param` per setting, with a `.param-label` and either a range slider
+  and `<output>`, or a `.segmented` group of `.seg` buttons.
