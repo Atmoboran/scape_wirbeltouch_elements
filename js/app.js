@@ -54,7 +54,10 @@ const DIRECTIONS = {
 };
 
 const MAX_PIXELS = 4.2e6;      // keeps 4K screens and weak GPUs civil
-const IDLE_RESET_MS = 4 * 60 * 1000;
+// Exhibit mode (?kiosk): back to the start after 3 minutes without touch.
+// On a visitor's own device nothing is ever reset behind their back.
+const KIOSK = new URLSearchParams(location.search).has('kiosk');
+const IDLE_RESET_MS = 3 * 60 * 1000;
 const DEFAULT_SCENE = 'cylinder';
 const DEFAULT_SIZE = 7;        // new obstacles: radius, per cent of the short side
 const DEFAULT_PEN = 2;         // freehand pen half width, per cent of the short side
@@ -74,10 +77,8 @@ const hintEl = document.getElementById('hint');
 const field = new ObstacleField({ obstacle: theme.obstacle, device: theme.device, selection: theme.selection });
 let sim = null;
 
-const browserLang = (navigator.language || '').toLowerCase().slice(0, 2);
-
 const state = {
-    lang: STRINGS[browserLang] ? browserLang : LANGS[0],
+    lang: LANGS[0],    // always start in German, whatever the browser says
     armed: null,       // the palette tool the next tap places, or null: the hand
     selected: null,    // the obstacle the inspector acts on
     size: DEFAULT_SIZE,
@@ -682,7 +683,6 @@ function setLanguage (lang) {
     renderInspector();
     updateDockToggle();
     endConfirm();
-    try { localStorage.setItem('wirbeltouch.lang', lang); } catch (e) { /* private mode */ }
 }
 
 /* ----------------------------------------------------- dock: collapse, shape */
@@ -1005,15 +1005,19 @@ function frame (now) {
         state.overlayDirty = false;
     }
 
-    if (now - state.lastInteraction > IDLE_RESET_MS) {
+    if (KIOSK && now - state.lastInteraction > IDLE_RESET_MS) {
         state.lastInteraction = now;
-        if (document.visibilityState === 'visible') resetAll();
+        if (document.visibilityState === 'visible') {
+            resetAll();
+            if (state.lang !== LANGS[0]) setLanguage(LANGS[0]);   // the next visitor starts in German
+        }
     }
 }
 
 // Start over: the default scene with every setting as it was at the start.
 // The language stays - it belongs to whoever is standing at the exhibit.
-// Also what happens after IDLE_RESET_MS without anyone touching it.
+// In kiosk mode also what happens after IDLE_RESET_MS without anyone
+// touching it (then the language goes back to German as well).
 function resetAll () {
     if (!sim) return;
     setArmed(null);
@@ -1038,9 +1042,7 @@ function resetAll () {
 /* --------------------------------------------------------------------- boot */
 
 function boot () {
-    let stored = null;
-    try { stored = localStorage.getItem('wirbeltouch.lang'); } catch (e) { /* ignore */ }
-    setLanguage(STRINGS[stored] ? stored : state.lang);
+    setLanguage(state.lang);
 
     setArmed(null);
     setPressed(smokeButtons, n => n.dataset.smoke === '0');

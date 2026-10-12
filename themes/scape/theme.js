@@ -25,7 +25,7 @@ const C = {
     greenStrong: '#00983A'
 };
 
-const CLAIM = 'Wetter, Klima, Wandel. Wir erklären es.';
+const CLAIM = 'SCAPE° – Wetter. Klima. Mensch.';
 
 const strings = {
     de: Object.assign({}, STRINGS.de, {
@@ -36,7 +36,7 @@ const strings = {
     en: Object.assign({}, STRINGS.en, {
         docTitle: 'WirbelTouch – flow you can touch · SCAPE°',
         helpTitle: 'How does it work?',
-        helpFooter: CLAIM          // the claim stays German: brand language
+        helpFooter: CLAIM          // the brand line stays German
     })
 };
 

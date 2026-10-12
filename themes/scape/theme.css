@@ -12,27 +12,24 @@
      shape, large cropped outline.
 
    Founders Grotesk is a commercial typeface (Klim Type Foundry) and is not
-   shipped. With a licence, drop the woff2 files into fonts/ (see the README
-   there); until then the stack falls back to Helvetica Neue / Inter / Arial. */
+   shipped: it is used when installed on the exhibit computer, otherwise the
+   stack falls back to Helvetica Neue / Inter / Arial. */
 
 @font-face {
   font-family: "Founders Grotesk";
-  src: local("Founders Grotesk Light"), local("FoundersGrotesk-Light"),
-       url("fonts/FoundersGrotesk-Light.woff2") format("woff2");
+  src: local("Founders Grotesk Light"), local("FoundersGrotesk-Light");
   font-weight: 300;
   font-display: swap;
 }
 @font-face {
   font-family: "Founders Grotesk";
-  src: local("Founders Grotesk Regular"), local("FoundersGrotesk-Regular"),
-       url("fonts/FoundersGrotesk-Regular.woff2") format("woff2");
+  src: local("Founders Grotesk Regular"), local("FoundersGrotesk-Regular");
   font-weight: 400;
   font-display: swap;
 }
 @font-face {
   font-family: "Founders Grotesk";
-  src: local("Founders Grotesk Medium"), local("FoundersGrotesk-Medium"),
-       url("fonts/FoundersGrotesk-Medium.woff2") format("woff2");
+  src: local("Founders Grotesk Medium"), local("FoundersGrotesk-Medium");
   font-weight: 500;
   font-display: swap;
 }

@@ -75,14 +75,16 @@ obstacles) and a steady wind-tunnel inflow could be built into every step.
   the model stops being trustworthy.
 * **Info buttons** – every setting has a small `i` that opens a short
   explanation of what it does and what it means physically.
-* German / English interface, touch and mouse, keyboard shortcuts
+* German / English interface (always starts in German; the EN button switches), touch and mouse, keyboard shortcuts
   (`Space` pause, `W` wind, `C` clear, `R` reset flow, `1`–`4` view,
   `Q`/`E` rotate, `Del` remove, `Esc` deselect).
 * Phone-friendly: the whole tool dock collapses to a single bar, the tool row
   scrolls sideways, and the inspector sits next to the tools rather than in
   the settings panel.
-* After 4 minutes without interaction the exhibit starts over by itself
-  (`IDLE_RESET_MS` in `js/app.js`).
+* Exhibit mode: open with `?kiosk` (e.g. `index.html?kiosk`) and the exhibit
+  starts over by itself after 3 minutes without interaction, back in German
+  (`IDLE_RESET_MS` in `js/app.js`). Without `?kiosk` nothing is reset, so a
+  visitor's own device is never reset behind their back.
 
 ## Design and texts
 
@@ -100,8 +102,9 @@ stylesheet, every text in German and English, icons, logo, favicon, and the
 colours of the simulation picture (smoke, colour maps, obstacles). What a
 theme has to provide is described in [themes/README.md](themes/README.md).
 
-Founders Grotesk is a commercial typeface and is not included; see
-[themes/scape/fonts/README.md](themes/scape/fonts/README.md).
+Founders Grotesk is a commercial typeface and is not included: it is used
+when installed on the exhibit computer, otherwise the system fallback
+(Helvetica Neue / Inter / Arial).
 
 ## Physics
 
